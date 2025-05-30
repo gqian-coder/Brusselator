@@ -60,7 +60,6 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     std::vector<Real> send_buf(total_buffer), recv_buf(total_buffer);
     // compressed buffer
     std::vector<unsigned char> recv_buf_compressed(total_buffer*sizeof(Real));
-    void *send_buf_compressed = (void *) malloc(total_buffer*sizeof(Real)); 
     Real *send_data_ptr = send_buf.data();
 
     // compression parameters
@@ -88,49 +87,49 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     }
     
     // Up/down compression (rows)
-    void *send_compressed_up = send_buf_compressed;
+    void *send_compressed_up;//= send_buf_compressed;
     if (sizeof(Real)==sizeof(double)) {
         mgard_x::compress(1, mgard_x::data_type::Double, shape_ny, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data(),
-                send_compressed_up, compressed_size_up, config, true);
+                send_compressed_up, compressed_size_up, config, false);
     } else if (sizeof(Real)==sizeof(float)) {
         mgard_x::compress(1, mgard_x::data_type::Float, shape_ny, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data(),
-                send_compressed_up, compressed_size_up, config, true);
+                send_compressed_up, compressed_size_up, config, false);
     } 
-    void *send_compressed_down = (void*)((char*)send_buf_compressed + compressed_size_up);
+    void *send_compressed_down;// = (void*)((char*)send_buf_compressed + compressed_size_up);
     if (sizeof(Real)==sizeof(double)) {
         mgard_x::compress(1, mgard_x::data_type::Double, shape_ny, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data()+local_ny,
-                send_compressed_down, compressed_size_down, config, true);
+                send_compressed_down, compressed_size_down, config, false);
     } else if (sizeof(Real)==sizeof(float)) {
         mgard_x::compress(1, mgard_x::data_type::Float, shape_ny, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data()+local_ny,
-                send_compressed_down, compressed_size_down, config, true);
+                send_compressed_down, compressed_size_down, config, false);
     } 
 
     // Left/right compression (columns)
-    void *send_compressed_left = (void*)((char*)send_buf_compressed + compressed_size_up + compressed_size_down);
+    void *send_compressed_left;// = (void*)((char*)send_buf_compressed + compressed_size_up + compressed_size_down);
     if (sizeof(Real)==sizeof(double)) {
         mgard_x::compress(1, mgard_x::data_type::Double, shape_nx, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data() + 2*local_ny,
-                send_compressed_left, compressed_size_left, config, true);
+                send_compressed_left, compressed_size_left, config, false);
     } else if (sizeof(Real)==sizeof(float)) {
         mgard_x::compress(1, mgard_x::data_type::Float, shape_nx, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data() + 2*local_ny,
-                send_compressed_left, compressed_size_left, config, true);
+                send_compressed_left, compressed_size_left, config, false);
     }
-    void *send_compressed_right = (void*)((char*)send_buf_compressed + compressed_size_up + compressed_size_down + compressed_size_left); 
+    void *send_compressed_right;// = (void*)((char*)send_buf_compressed + compressed_size_up + compressed_size_down + compressed_size_left); 
     if (sizeof(Real)==sizeof(double)) {
         mgard_x::compress(1, mgard_x::data_type::Double, shape_nx, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data()+2*local_ny+local_nx,
-                send_compressed_right, compressed_size_right, config, true);
+                send_compressed_right, compressed_size_right, config, false);
     } else if (sizeof(Real)==sizeof(float)) {
         mgard_x::compress(1, mgard_x::data_type::Float, shape_nx, tol, s,
                 mgard_x::error_bound_type::ABS, send_buf.data()+2*local_ny+local_nx,
-                send_compressed_right, compressed_size_right, config, true);
+                send_compressed_right, compressed_size_right, config, false);
     }    
-    std::cout << "compressed size up = " << compressed_size_up << ", down = " << compressed_size_down <<", left = " << compressed_size_left << ", right = " << compressed_size_right << "\n";
+    //std::cout << "compressed size up = " << compressed_size_up << ", down = " << compressed_size_down <<", left = " << compressed_size_left << ", right = " << compressed_size_right << "\n";
     
     MPI_Barrier(cart_comm);
     // Up/down communication (rows) the compressed size
@@ -145,6 +144,8 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
                  &recv_size_left, 1, MPI_UNSIGNED_LONG, left, 3, cart_comm, &status);
 
     MPI_Barrier(cart_comm);
+    //std::cout << "received size up = " << recv_size_up << ", down = " << recv_size_down <<", left = " << recv_size_left << ", right = " << recv_size_right << "\n";
+    
     // Up/down communication (rows) the compressed data
     void *recv_compressed_up = static_cast<void*>(recv_buf_compressed.data());
     MPI_Sendrecv(send_compressed_down, compressed_size_down, MPI_BYTE, down, 5,
@@ -159,18 +160,17 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     void *recv_compressed_right = static_cast<void*>(recv_buf_compressed.data() +recv_size_up+recv_size_down+recv_size_left);
     MPI_Sendrecv(send_compressed_left, compressed_size_left, MPI_BYTE, left, 6,
                  recv_compressed_right, recv_size_right, MPI_BYTE, right, 6, cart_comm, &status);
-
     
     // Decompression
     void *recv_buf_up = static_cast<void*>(recv_buf.data());
-    mgard_x::decompress(recv_compressed_up, compressed_size_up, recv_buf_up, config, true);
+    mgard_x::decompress(recv_compressed_up, recv_size_up, recv_buf_up, config, true);
     
     void *recv_buf_down = static_cast<void*>(recv_buf.data() + local_ny);
-    mgard_x::decompress(recv_compressed_down, compressed_size_down, recv_buf_down, config, true);
+    mgard_x::decompress(recv_compressed_down, recv_size_down, recv_buf_down, config, true);
     void *recv_buf_left = static_cast<void*>(recv_buf.data() + 2*local_ny);
-    mgard_x::decompress(recv_compressed_left, compressed_size_left, recv_buf_left, config, true);
+    mgard_x::decompress(recv_compressed_left, recv_size_left, recv_buf_left, config, true);
     void *recv_buf_right = static_cast<void*>(recv_buf.data() + 2*local_ny + local_nx);
-    mgard_x::decompress(recv_compressed_right, compressed_size_right, recv_buf_right, config, true);
+    mgard_x::decompress(recv_compressed_right, recv_size_right, recv_buf_right, config, true);
      
     double *recv_buf_ptr = recv_buf.data();
     // copy back to the current grid
@@ -186,7 +186,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     for (size_t i = 0; i < local_nx; ++i) {
         grid[idx(i + 1, local_ny + 1, ny)] = *(recv_buf_ptr++); 
     }
-    free(send_buf_compressed);
+    
 }
 
 
