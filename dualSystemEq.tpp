@@ -59,7 +59,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     size_t total_buffer = local_ny*2+local_nx*2;
     std::vector<Real> send_buf(total_buffer), recv_buf(total_buffer);
     // compressed buffer
-    std::vector<char>send_buf_compressed(total_buffer*sizeof(Real)), recv_buf_compressed(total_buffer*sizeof(Real));
+    std::vector<unsigned char>send_buf_compressed(total_buffer*sizeof(Real)), recv_buf_compressed(total_buffer*sizeof(Real));
     Real *send_data_ptr = send_buf.data();
 
     // compression parameters
