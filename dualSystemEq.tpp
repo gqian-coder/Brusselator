@@ -49,8 +49,102 @@ void dualSystemEquation<Real>::compute_laplacian(const std::vector<Real>& grid, 
     }
 }
 
+// Exchange ghost cells with neighbors with compression on the whole sub-domain 
+template<typename Real>
+void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
+                          MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol, Real s)
+{
+    MPI_Status status;
+    size_t total_buffer = (local_ny+2)*(local_nx+2);
+    std::vector<Real> recv_buf(total_buffer*4);
+    // compressed buffer
+    std::vector<unsigned char> recv_buf_compressed(total_buffer*4*sizeof(Real));
 
-// Exchange ghost cells with neighbors
+    // compression parameters
+    mgard_x::Config config;
+    config.dev_type = mgard_x::device_type::SERIAL;
+    config.lossless = mgard_x::lossless_type::Huffman_Zstd;
+    config.normalize_coordinates = true;
+    std::vector<mgard_x::SIZE> data_shape{local_nx+2, local_ny+2};
+    size_t compressed_size;
+    size_t recv_size_up, recv_size_down, recv_size_left, recv_size_right;
+
+    // compression the entire sub-domain 
+    void *compressed_data;
+    mgard_x::compress(2, mgard_x::data_type::Double, data_shape, tol, s,
+                mgard_x::error_bound_type::ABS, grid.data(),
+                compressed_data, compressed_size, config, false);
+    
+    MPI_Barrier(cart_comm);
+    // Up/down communication (rows) the compressed size
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, up, 0,
+                 &recv_size_down, 1, MPI_UNSIGNED_LONG, down, 0, cart_comm, &status);
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, down, 1,
+                 &recv_size_up, 1, MPI_UNSIGNED_LONG, up, 1, cart_comm, &status);
+    // Left/right communication (columns) the compressed size
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, left, 2,
+                 &recv_size_right, 1, MPI_UNSIGNED_LONG, right, 2, cart_comm, &status);
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, right, 3,
+                 &recv_size_left, 1, MPI_UNSIGNED_LONG, left, 3, cart_comm, &status);
+
+    MPI_Barrier(cart_comm);
+    //std::cout << "compressed data = " << compressed_size << ", received size up = " << recv_size_up << ", down = " << recv_size_down <<", left = " << recv_size_left << ", right = " << recv_size_right << "\n";
+
+    // Up/down communication (rows) the compressed data
+    void *recv_compressed_up = static_cast<void*>(recv_buf_compressed.data());
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, down, 5,
+                 recv_compressed_up, recv_size_up, MPI_BYTE, up, 5, cart_comm, &status);
+    void *recv_compressed_down = static_cast<void*>(recv_buf_compressed.data() + recv_size_up);
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, up, 4,
+                 recv_compressed_down, recv_size_down, MPI_BYTE, down, 4, cart_comm, &status);
+    // Left/right communication (columns) the compressed data
+    void *recv_compressed_left = static_cast<void*>(recv_buf_compressed.data() + recv_size_up + recv_size_down);
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, right, 7,
+                 recv_compressed_left, recv_size_left, MPI_BYTE, left, 7, cart_comm, &status);
+    void *recv_compressed_right = static_cast<void*>(recv_buf_compressed.data() +recv_size_up+recv_size_down+recv_size_left);
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, left, 6,
+                 recv_compressed_right, recv_size_right, MPI_BYTE, right, 6, cart_comm, &status);
+
+    // Decompression
+    void *recv_buf_up = static_cast<void*>(recv_buf.data());
+    mgard_x::decompress(recv_compressed_up, recv_size_up, recv_buf_up, config, true);
+
+    void *recv_buf_down = static_cast<void*>(recv_buf.data() + total_buffer);
+    mgard_x::decompress(recv_compressed_down, recv_size_down, recv_buf_down, config, true);
+
+    void *recv_buf_left = static_cast<void*>(recv_buf.data() + 2*total_buffer);
+    mgard_x::decompress(recv_compressed_left, recv_size_left, recv_buf_left, config, true);
+
+    void *recv_buf_right = static_cast<void*>(recv_buf.data() + 3*total_buffer);
+    mgard_x::decompress(recv_compressed_right, recv_size_right, recv_buf_right, config, true);
+
+    // copy back to the current grid
+    // Up
+    double *recv_buf_ptr = recv_buf.data() + total_buffer - 2*ny + 1;
+    for (size_t j = 0; j < local_ny; ++j) {
+        grid[idx(0, j + 1, ny)] = *(recv_buf_ptr++);
+    }
+    // Down
+    recv_buf_ptr = recv_buf.data() + total_buffer + ny + 1;
+    for (size_t j = 0; j < local_ny; ++j) {
+        grid[idx(local_nx + 1, j + 1, ny)] = *(recv_buf_ptr++);
+    }
+    // Left
+    recv_buf_ptr = recv_buf.data() + (total_buffer  + ny - 1) * 2;
+    for (size_t i = 0; i < local_nx; ++i) {
+        grid[idx(i + 1, 0, ny)] = *recv_buf_ptr;
+        recv_buf_ptr += ny;
+    }
+    // Right
+    recv_buf_ptr = recv_buf.data() + total_buffer * 3 + ny + 1;
+    for (size_t i = 0; i < local_nx; ++i) {
+        grid[idx(i + 1, local_ny + 1, ny)] = *recv_buf_ptr;
+        recv_buf_ptr += ny;
+    }
+}
+
+/*
+// Exchange ghost cells with neighbors with compression on edge nodes only
 template<typename Real>
 void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol, Real s)
@@ -188,6 +282,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     }
     
 }
+*/
 
 
 // Exchange ghost cells with neighbors
