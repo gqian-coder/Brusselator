@@ -76,6 +76,7 @@ int main(int argc, char** argv) {
     double dt = std::stof(argv[cnt_argv++]);
     double T  = std::stof(argv[cnt_argv++]);
     size_t wt_interval = (size_t) std::stof(argv[cnt_argv++]);
+    std::string filename = argv[cnt_argv++];
     size_t steps = (size_t)(T/dt);
     size_t Nx = (size_t)std::ceil((double)Lx / dh) ;
     size_t Ny = (size_t)std::ceil((double)Ly / dh) ;
@@ -145,11 +146,11 @@ int main(int argc, char** argv) {
         }    
         case 2: {
             size_t n_drops = 4;
-	    if (rank==0) {
-	            std::cout << n_drops << " rain drops of width " << NDx << " in rank " << rank << " (" << coords[0] << ", " << coords[1] << ")\n";
-        	    auto [min_it, max_it] = std::minmax_element(gauss_template.begin(), gauss_template.end());
-            	std::cout << "min and max of gaussian source: " << *min_it << ", " << *max_it << "\n";
-	    }
+            if (rank==0) {
+                std::cout << n_drops << " rain drops of width " << NDx << " in rank " << rank << " (" << coords[0] << ", " << coords[1] << ")\n";
+                auto [min_it, max_it] = std::minmax_element(gauss_template.begin(), gauss_template.end());
+                std::cout << "min and max of gaussian source: " << *min_it << ", " << *max_it << "\n";
+            }
             fun_MultiRainDrop<double>(dualSys.u_n.data(), dualSys.v_n.data(), dualSys.dField, NDx, NDy, 1, gauss_template.data(), n_drops);
             break;
         }
@@ -176,7 +177,7 @@ int main(int argc, char** argv) {
     std::vector<std::size_t> count = {(std::size_t)fieldData.nx, (std::size_t)fieldData.ny};
     auto var_u = io.DefineVariable<double>("u", shape, start, count);
     auto var_v = io.DefineVariable<double>("v", shape, start, count);
-    adios2::Engine writer = io.Open("brusselator_mpi.bp", adios2::Mode::Write);
+    adios2::Engine writer = io.Open(filename, adios2::Mode::Write);
     //std::cout << "shape = {" << shape[0] << ", " << shape[1] << "}, start = {" << start[0] << ", " << start[1] << "}, count = {" << count[0] << ", " << count[1] << "}\n";
 
     std::vector<double> internal_data(fieldData.nx*fieldData.ny);
