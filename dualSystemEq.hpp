@@ -22,8 +22,8 @@ public:
                           MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol, Real s);
     
     // initial current ts data values
-    void init_u(Real *data);
-    void init_v(Real *data);
+    void init_u_2d(Real *data);
+    void init_v_2d(Real *data);
 
     //! Return the size in bytes of the data
     std::size_t size() const;

@@ -21,16 +21,20 @@ dualSystemEquation<Real>::dualSystemEquation(field fieldData,
 
 
 template<typename Real>
-void dualSystemEquation<Real>::init_u(Real *data)
+void dualSystemEquation<Real>::init_u_2d(Real *data)
 {
-    std::copy(data, data + data_size, u_n.begin());
+    for (size_t i=0; i<dField.nx; i++) {
+        std::copy(data+i*dField.ny, data+i*dField.ny+dField.ny, u_n.data()+(i+1)*(dField.ny+2) + 1);
+    }
 }
 
 
 template<typename Real>
-void dualSystemEquation<Real>::init_v(Real *data)
+void dualSystemEquation<Real>::init_v_2d(Real *data)
 {
-    std::copy(data, data + data_size, v_n.begin());
+    for (size_t i=0; i<dField.nx; i++) {
+        std::copy(data+i*dField.ny, data+i*dField.ny+dField.ny, v_n.data()+(i+1)*(dField.ny+2) + 1);
+    }
 }
 
 

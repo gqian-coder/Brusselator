@@ -153,22 +153,29 @@ int main(int argc, char** argv) {
     // domain value initialization
     switch (init_fun) {
         case 0: {
-            std::cout << "Initialize the simulation from a previously saved checkpoint file\n";
             adios2::IO reader_io = adios.DeclareIO("Input");
             reader_io.SetEngine("BP");
             adios2::Engine reader = reader_io.Open(filename, adios2::Mode::ReadRandomAccess);
             adios2::Variable<double> variable_u, variable_v;
             variable_u = reader_io.InquireVariable<double>("u");
             variable_v = reader_io.InquireVariable<double>("v");
-            std::cout << "total number of steps: " << variable_u.Steps() << ", read from " << init_ts << " timestep \n";
-            variable_u.SetStepSelection({init_ts, 1});
+            if (rank==0) {
+                std::cout << "total number of steps: " << variable_u.Steps() << ", read from " << init_ts << " timestep \n";
+                std::cout << "Initialize the simulation from a previously saved checkpoint file\n";
+            }
+            std::vector<double> in_var(fieldData.nx * fieldData.ny);
             variable_u.SetSelection({start, count}); 
-            variable_v.SetStepSelection({init_ts, 1});
+            variable_u.SetStepSelection({init_ts, 1});
             variable_v.SetSelection({start, count});
-            reader.Get(variable_u, dualSys.u_n.data());
-            reader.Get(variable_v, dualSys.v_n.data());
+            variable_v.SetStepSelection({init_ts, 1});
+            reader.Get(variable_u, in_var.data());
             reader.PerformGets();
+            dualSys.init_u_2d(in_var.data());
+            reader.Get(variable_v, in_var.data());
+            reader.PerformGets();
+            dualSys.init_v_2d(in_var.data());
             reader.Close();
+            in_var.clear();
             filename.erase(filename.size() - 3);
             filename.append("-cr.bp");
             break;
