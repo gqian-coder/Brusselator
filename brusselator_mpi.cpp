@@ -69,7 +69,11 @@ int main(int argc, char** argv) {
     initialize_mpi_bound<double>(parallelization, 2, rank, size, cart_comm, compression, tol_u, tol_v, snorm);
     std::cout << "Rank " << rank << " coordinates: {" << coords[0] << ", " << coords[1] << "}, up = " << parallelization.up << ", down = " << parallelization.down << ", left = " << parallelization.left << ", right = " << parallelization.right<< "\n";
 
-    int init_fun = std::stoi(argv[cnt_argv++]);
+    int init_fun   = std::stoi(argv[cnt_argv++]);
+    size_t init_ts = 0;
+    if (init_fun==0) {
+        init_ts = std::stoi(argv[cnt_argv++]);
+    }
     double Lx = std::stof(argv[cnt_argv++]);
     double Ly = std::stof(argv[cnt_argv++]);
     double dh = std::stof(argv[cnt_argv++]);
@@ -110,6 +114,17 @@ int main(int argc, char** argv) {
     double NDx, NDy;
     double max_intensity = 1.0;
 
+    // Initialize ADIOS2
+    adios2::ADIOS adios(MPI_COMM_WORLD);
+    adios2::IO io = adios.DeclareIO("Brusselator");
+    std::vector<std::size_t> shape = {(std::size_t)Nx, (std::size_t)Ny};
+    std::vector<std::size_t> start = {(std::size_t)(fieldData.nx_start), (std::size_t)(fieldData.ny_start)};
+    std::vector<std::size_t> count = {(std::size_t)fieldData.nx, (std::size_t)fieldData.ny};
+    
+    auto var_u = io.DefineVariable<double>("u", shape, start, count);
+    auto var_v = io.DefineVariable<double>("v", shape, start, count);
+    //std::cout << "shape = {" << shape[0] << ", " << shape[1] << "}, start = {" << start[0] << ", " << start[1] << "}, count = {" << count[0] << ", " << count[1] << "}\n";
+
     if ((init_fun==1) || (init_fun==2)) {
         // Width of the Gaussian profile for each initial drop.
         double drop_width = (init_fun==1) ? fieldData.nx_full/2*dh : fieldData.nx_full/3*dh;
@@ -137,6 +152,27 @@ int main(int argc, char** argv) {
 
     // domain value initialization
     switch (init_fun) {
+        case 0: {
+            std::cout << "Initialize the simulation from a previously saved checkpoint file\n";
+            adios2::IO reader_io = adios.DeclareIO("Input");
+            reader_io.SetEngine("BP");
+            adios2::Engine reader = reader_io.Open(filename, adios2::Mode::ReadRandomAccess);
+            adios2::Variable<double> variable_u, variable_v;
+            variable_u = reader_io.InquireVariable<double>("u");
+            variable_v = reader_io.InquireVariable<double>("v");
+            std::cout << "total number of steps: " << variable_u.Steps() << ", read from " << init_ts << " timestep \n";
+            variable_u.SetStepSelection({init_ts, 1});
+            variable_u.SetSelection({start, count}); 
+            variable_v.SetStepSelection({init_ts, 1});
+            variable_v.SetSelection({start, count});
+            reader.Get(variable_u, dualSys.u_n.data());
+            reader.Get(variable_v, dualSys.v_n.data());
+            reader.PerformGets();
+            reader.Close();
+            filename.erase(filename.size() - 3);
+            filename.append("-cr.bp");
+            break;
+        }
         case 1: {
             std::cout << "Rain drop of width " << NDx <<  " in rank " << rank << " (" << coords[0] << ", " << coords[1] << ")\n";
             auto [min_it, max_it] = std::minmax_element(gauss_template.begin(), gauss_template.end());
@@ -169,16 +205,7 @@ int main(int argc, char** argv) {
             break;
     }
 
-    // Initialize ADIOS2
-    adios2::ADIOS adios(MPI_COMM_WORLD);
-    adios2::IO io = adios.DeclareIO("Brusselator");
-    std::vector<std::size_t> shape = {(std::size_t)Nx, (std::size_t)Ny};
-    std::vector<std::size_t> start = {(std::size_t)(fieldData.nx_start), (std::size_t)(fieldData.ny_start)};
-    std::vector<std::size_t> count = {(std::size_t)fieldData.nx, (std::size_t)fieldData.ny};
-    auto var_u = io.DefineVariable<double>("u", shape, start, count);
-    auto var_v = io.DefineVariable<double>("v", shape, start, count);
     adios2::Engine writer = io.Open(filename, adios2::Mode::Write);
-    //std::cout << "shape = {" << shape[0] << ", " << shape[1] << "}, start = {" << start[0] << ", " << start[1] << "}, count = {" << count[0] << ", " << count[1] << "}\n";
 
     std::vector<double> internal_data(fieldData.nx*fieldData.ny);
 

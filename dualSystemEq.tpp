@@ -318,7 +318,6 @@ void dualSystemEquation<Real>::exchange_ghost_cells(std::vector<Real>& grid, siz
                  recv_buf.data(), local_ny, datatype, up, 1, cart_comm, &status);
     for (size_t j = 0; j < local_ny; ++j) {
         grid[idx(0, j + 1, ny)] = recv_buf[j];
-        std::cout << recv_buf[j] << "\n";
     }
 
     // Left/right communication (columns)
