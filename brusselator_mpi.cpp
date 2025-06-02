@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
 
     if ((init_fun==1) || (init_fun==2)) {
         // Width of the Gaussian profile for each initial drop.
-        double drop_width = (init_fun==1) ? fieldData.nx_full/2*dh : fieldData.nx_full/5*dh;
+        double drop_width = (init_fun==1) ? fieldData.nx_full/2*dh : fieldData.nx_full/3*dh;
         // Size of the Gaussian template each drop is based on.
         NDx = (size_t) std::ceil(drop_width / dh);
         NDy = (size_t) std::ceil(drop_width / dh);
@@ -145,9 +145,11 @@ int main(int argc, char** argv) {
         }    
         case 2: {
             size_t n_drops = 4;
-            std::cout << n_drops << " rain drops of width " << NDx << " in rank " << rank << " (" << coords[0] << ", " << coords[1] << ")\n";
-            auto [min_it, max_it] = std::minmax_element(gauss_template.begin(), gauss_template.end());
-            std::cout << "min and max of gaussian source: " << *min_it << ", " << *max_it << "\n";
+            if (rank==0) {
+                std::cout << n_drops << " rain drops of width " << NDx << " in rank " << rank << " (" << coords[0] << ", " << coords[1] << ")\n";
+                auto [min_it, max_it] = std::minmax_element(gauss_template.begin(), gauss_template.end());
+                std::cout << "min and max of gaussian source: " << *min_it << ", " << *max_it << "\n";
+            }
             fun_MultiRainDrop<double>(dualSys.u_n.data(), dualSys.v_n.data(), dualSys.dField, NDx, NDy, 1, gauss_template.data(), n_drops);
             break;
         }
@@ -179,10 +181,10 @@ int main(int argc, char** argv) {
 
     std::vector<double> internal_data(fieldData.nx*fieldData.ny);
 
-    bool mid_rank = ((coords[0]==(int)std::floor(dims[0]/2)) && (coords[1]==(int)std::floor(dims[1]/2)));
+    //bool mid_rank = ((coords[0]==(int)std::floor(dims[0]/2)) && (coords[1]==(int)std::floor(dims[1]/2)));
     for (size_t t = 0; t <= steps; ++t) {
-        auto [min_it, max_it] = std::minmax_element(dualSys.u_n.begin(), dualSys.u_n.end());
-        auto [min_v, max_v] = std::minmax_element(dualSys.v_n.begin(), dualSys.v_n.end());
+        //auto [min_it, max_it] = std::minmax_element(dualSys.u_n.begin(), dualSys.u_n.end());
+        //auto [min_v, max_v] = std::minmax_element(dualSys.v_n.begin(), dualSys.v_n.end());
         //if (coords[0]==(int)std::floor(dims[0]/2)) {
         //if (mid_rank) {
         //    std::cout << "step " << t << "/" << steps << "\n";
@@ -197,7 +199,7 @@ int main(int argc, char** argv) {
             writer.Put(var_v, internal_data.data(), adios2::Mode::Sync);
             writer.PerformPuts();
             writer.EndStep(); 
-            //if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
+            if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
         }
         dualSys.rk4_step_2d(parallelization);
     }
