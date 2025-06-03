@@ -71,15 +71,16 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     config.lossless = mgard_x::lossless_type::Huffman_Zstd;
     config.normalize_coordinates = true;
     std::vector<mgard_x::SIZE> data_shape{local_nx+2, local_ny+2};
-    size_t compressed_size;
+    size_t compressed_size = total_buffer * sizeof(Real);
     size_t recv_size_up, recv_size_down, recv_size_left, recv_size_right;
 
     // compression the entire sub-domain 
-    void *compressed_data;
+    char *bufferOut = (char *) malloc(compressed_size);
+    void *compressed_data = bufferOut; 
     
     mgard_x::compress(2, mgard_x::data_type::Double, data_shape, tol, s,
                 mgard_x::error_bound_type::ABS, grid.data(),
-                compressed_data, compressed_size, config, false);
+                compressed_data, compressed_size, config, true);
     
     MPI_Barrier(cart_comm);
     // Up/down communication (rows) the compressed size
@@ -147,6 +148,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
         grid[idx(i + 1, local_ny + 1, ny)] = *recv_buf_ptr;
         recv_buf_ptr += ny;
     }
+    free(bufferOut);
 }
 
 
