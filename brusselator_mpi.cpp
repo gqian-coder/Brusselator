@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
     size_t Nx = (size_t)std::ceil((double)Lx / dh) ;
     size_t Ny = (size_t)std::ceil((double)Ly / dh) ;
     if (rank==0) {
+        std::cout << "Compression flag " << (int)compression << ", eb = " << tol_u << ", snorm = " << snorm << "\n"; 
         std::cout << "init fun = " << init_fun << ", " << "Lx = " << Lx << ", Ly = " << Ly << ", dh = " << dh << ", dt = " << dt <<  ", T = " << T << ", total steps = " << steps <<  ", wt_interval = " << wt_interval << ", Nx = " << Nx << ", " << Ny << "\n";
     }
 
@@ -215,6 +216,7 @@ int main(int argc, char** argv) {
     adios2::Engine writer = io.Open(filename, adios2::Mode::Write);
 
     std::vector<double> internal_data(fieldData.nx*fieldData.ny);
+    size_t mpi_size_rk = 0, mpi_size_total = 0;
 
     //bool mid_rank = ((coords[0]==(int)std::floor(dims[0]/2)) && (coords[1]==(int)std::floor(dims[1]/2)));
     for (size_t t = 0; t <= steps; ++t) {
@@ -236,9 +238,15 @@ int main(int argc, char** argv) {
             writer.EndStep(); 
             if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
         }
-        dualSys.rk4_step_2d(parallelization);
+        mpi_size_rk += dualSys.rk4_step_2d(parallelization);
     }
 
+    MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    std::cout << "Rank " << rank << ": s = " << snorm << ", MPI message CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * 4 * sizeof(double) / (double)mpi_size_rk << "\n"; 
+    if (rank == 0) {
+        std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)(Nx * Ny) * 4 * sizeof(double) / (double)mpi_size_total <<"\n"; 
+    }
+ 
     writer.Close();
     MPI_Finalize();
     return 0;

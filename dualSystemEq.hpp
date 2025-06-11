@@ -13,12 +13,12 @@ public:
                   
 
     //! Update the simulation by one time tick.
-    void rk4_step_2d(parallel_data<Real> parallel);
+    size_t rk4_step_2d(parallel_data<Real> parallel);
     void rk4_step_3d(parallel_data<Real> parallel);
     void compute_laplacian(const std::vector<Real>& grid, std::vector<Real>& lap, size_t nx, size_t ny, Real dh);
     void exchange_ghost_cells(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Datatype datatype, MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right);
-    void exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
+    size_t exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol, Real s);
     
     // initial current ts data values
