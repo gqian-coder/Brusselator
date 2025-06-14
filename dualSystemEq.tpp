@@ -47,8 +47,9 @@ void dualSystemEquation<Real>::compute_laplacian(const std::vector<Real>& grid, 
     for (size_t i = 1; i <= nx; ++i) {
         for (size_t j = 1; j <= ny; ++j) {
             lap[idx(i, j, ny + 2)] = (
-                grid[idx(i + 1, j, ny + 2)] + grid[idx(i - 1, j, ny + 2)] - 2 * grid[idx(i, j, ny + 2)]) / dh2 
-                + (grid[idx(i, j + 1, ny + 2)] + grid[idx(i, j - 1, ny + 2)] - 2 * grid[idx(i, j, ny + 2)]) / dh2;
+                grid[idx(i + 1, j, ny + 2)] + grid[idx(i - 1, j, ny + 2)] 
+                + grid[idx(i, j + 1, ny + 2)] + grid[idx(i, j - 1, ny + 2)] 
+                - 4 * grid[idx(i, j, ny + 2)]) / dh2;
         }
     }
 }
