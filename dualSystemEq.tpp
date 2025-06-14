@@ -57,7 +57,7 @@ void dualSystemEquation<Real>::compute_laplacian(const std::vector<Real>& grid, 
 
 // Exchange ghost cells with neighbors with compression on the whole sub-domain 
 template<typename Real>
-void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
+size_t dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol, Real s)
 {
     MPI_Status status;
@@ -150,6 +150,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
         recv_buf_ptr += ny;
     }
     free(bufferOut);
+    return compressed_size;
 }
 
 
@@ -351,7 +352,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells(std::vector<Real>& grid, siz
 
 // Runge-Kutta 4 step
 template<typename Real>
-void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel) 
+size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel) 
 {
     std::pair<std::vector<double>::iterator, std::vector<double>::iterator> mnmx_u, mnmx_v;
 
@@ -371,11 +372,13 @@ void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     Real tol_u   = parallel.tol_u;
     Real tol_v   = parallel.tol_u;
     Real mgr_s   = parallel.snorm;
+    
+    size_t mpi_size = 0;
 
     // k1
     if (parallel.compression) {
-        exchange_ghost_cells_mgr(u_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        exchange_ghost_cells_mgr(v_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(u_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(v_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(u_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
         exchange_ghost_cells(v_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
@@ -395,8 +398,8 @@ void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     
     // k2
      if (parallel.compression) {
-        exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
@@ -415,8 +418,8 @@ void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
 
     // k3
      if (parallel.compression) {
-        exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
@@ -435,8 +438,8 @@ void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
 
     // k4
      if (parallel.compression) {
-        exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
@@ -450,9 +453,6 @@ void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
             k4v[id] = B * ut[id] - ut[id] * ut[id] * vt[id] + Dv * Lv[id];
         }
     }
-    //mnmx_u = std::minmax_element(ut.begin(), ut.end());
-    //mnmx_v = std::minmax_element(vt.begin(), vt.end());
-    //std::cout << "After k4, the min and max of u_n = " << ut[mnmx_u.first - ut.begin()] << ", " << ut[mnmx_u.second - ut.begin()]<< ", v_n = " << vt[mnmx_v.first - vt.begin()] << ", " << vt[mnmx_v.second - vt.begin()]<< "\n"; 
 
     // Final update
     for (size_t i = 1; i <= nx; ++i) {
@@ -462,5 +462,7 @@ void dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
             v_n[id] += dt / 6.0 * (k1v[id] + 2 * k2v[id] + 2 * k3v[id] + k4v[id]);
         }
     }
+
+    return mpi_size;
 }
 
