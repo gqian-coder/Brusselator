@@ -242,9 +242,9 @@ int main(int argc, char** argv) {
     }
 
     MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
-    std::cout << "Rank " << rank << ": s = " << snorm << ", MPI message CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * 4 * sizeof(double) / (double)mpi_size_rk << "\n"; 
+    std::cout << "Rank " << rank << ": s = " << snorm << ", MPI message CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * 4 * sizeof(double) * 2 / (double)mpi_size_rk << "\n"; 
     if (rank == 0) {
-        std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)(Nx * Ny) * 4 * sizeof(double) / (double)mpi_size_total <<"\n"; 
+        std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)(Nx * Ny) * 4 * sizeof(double) * 2 / (double)mpi_size_total <<"\n"; 
     }
  
     writer.Close();

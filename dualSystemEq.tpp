@@ -370,17 +370,20 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     size_t left  = parallel.left;
     size_t right = parallel.right;
     Real tol_u   = parallel.tol_u;
-    Real tol_v   = parallel.tol_u;
+    Real tol_v   = parallel.tol_v;
     Real mgr_s   = parallel.snorm;
     
     size_t mpi_size = 0;
 
     // k1
-    if (parallel.compression) {
+    if (parallel.compression && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(u_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+    }  else {
+        exchange_ghost_cells(u_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
+    }
+    if (parallel.compression && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(v_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
-        exchange_ghost_cells(u_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
         exchange_ghost_cells(v_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     compute_laplacian(u_n, Lu, nx, ny, dh);
@@ -397,11 +400,14 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     }
     
     // k2
-     if (parallel.compression) {
+    if (parallel.compression && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
+    }
+    if (parallel.compression && (tol_v>0)) {
+        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else {
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     compute_laplacian(ut, Lu, nx, ny, dh);
@@ -417,11 +423,14 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     }
 
     // k3
-     if (parallel.compression) {
+    if (parallel.compression && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
+    }
+    if (parallel.compression && (tol_v>0)) {
+        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else {
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     compute_laplacian(ut, Lu, nx, ny, dh);
@@ -437,11 +446,14 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     }
 
     // k4
-     if (parallel.compression) {
+    if (parallel.compression && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
+    }
+    if (parallel.compression && (tol_v>0)) {
+        mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else {
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     compute_laplacian(ut, Lu, nx, ny, dh);
