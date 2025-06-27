@@ -15,8 +15,8 @@ dualSystemEquation<Real>::dualSystemEquation(field fieldData,
     // create a ghost zone to host the boundary data for mpi exchange
     data_size = dField.nz>1 ? (dField.nx+2) * (dField.ny+2) * (dField.nz+2) : (dField.nx+2) * (dField.ny+2);
     //std::cout << "data_size = " << data_size << "\n";
-    u_n.resize(data_size, A+0.1);
-    v_n.resize(data_size, B / A+0.2);
+    u_n.resize(data_size, A);//+0.1);
+    v_n.resize(data_size, B / A);//+0.2);
 }
 
 

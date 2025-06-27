@@ -18,8 +18,12 @@
 using namespace std;
 
 // Brusselator parameters
-const double A = 2;
-const double B = 3;
+// Turing spots
+const double A = 0.5;
+const double B = 3.0;
+// Turing strips
+//const double A = 5;
+//const double B = 10;
 double Du = 1.0;
 double Dv = 9.0;
 

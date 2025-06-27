@@ -154,9 +154,9 @@ int main(int argc, char **argv) {
         fclose(fp);
     }
 
-    size_t n_print = std::min((int)cnt, 500);
+    size_t n_print = std::min((int)cnt, 1000);
     for (size_t i=0; i<n_print; i++) {
-        std::cout << "Step " << i << "var U: l2 = " << rmse_u[i] << ", PE_e = " << PE_e_u[i] << ", PE_f = " << PE_f_u[i] << "\n";
+        std::cout << "Step " << i << " ==> var U: l2 = " << rmse_u[i] << ", PE_e = " << PE_e_u[i] << ", PE_f = " << PE_f_u[i] << "\n";
         //std::cout << "      var V: l2 = " << rmse_v[i] << ", PE_e = " << PE_e_v[i] << ", PE_f = " << PE_f_v[i] << "\n";
     }
     return 0;
