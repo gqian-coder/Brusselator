@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     }
 
     int cnt_argv = 1;
-    bool compression = std::stoi(argv[cnt_argv++]);
+    int compression  = std::stoi(argv[cnt_argv++]);
     double tol_u     = std::stof(argv[cnt_argv++]);
     double tol_v     = std::stof(argv[cnt_argv++]);
     double snorm = std::stof(argv[cnt_argv++]);   

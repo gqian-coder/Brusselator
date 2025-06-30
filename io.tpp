@@ -9,7 +9,7 @@
 template <typename Real>
 void initialize_mpi_bound(parallel_data <Real>&parallel, int nDim, int rank, 
                         int np_size, MPI_Comm cart_comm, 
-                        bool compression, Real tol_u, Real tol_v, Real snorm)
+                        int compression, Real tol_u, Real tol_v, Real snorm)
 {
     parallel.comm        = cart_comm;
     parallel.rank        = rank;

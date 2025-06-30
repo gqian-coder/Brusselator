@@ -16,10 +16,15 @@ public:
     size_t rk4_step_2d(parallel_data<Real> parallel);
     void rk4_step_3d(parallel_data<Real> parallel);
     void compute_laplacian(const std::vector<Real>& grid, std::vector<Real>& lap, size_t nx, size_t ny, Real dh);
+    // non-compression MPI ghost zone exchange
     void exchange_ghost_cells(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Datatype datatype, MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right);
+    // MGARD-compression for MPI
     size_t exchange_ghost_cells_mgr(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol, Real s);
+    // SZ-compression for MPI
+    size_t exchange_ghost_cells_SZ(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
+                          MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol);
     
     // initial current ts data values
     void init_u_2d(Real *data);

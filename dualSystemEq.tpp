@@ -3,6 +3,7 @@
 #include <vector>
 #include "io.hpp"
 #include "mgard/compress_x.hpp"
+#include "SZ3/api/sz.hpp"
 
 // Helper to index 2D arrays stored in 1D
 inline size_t idx(size_t i, size_t j, size_t ny) { return i * ny + j; }
@@ -154,6 +155,102 @@ size_t dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& gri
 }
 
 
+// Exchange ghost cells with neighbors with compression on the whole sub-domain
+template<typename Real>
+size_t dualSystemEquation<Real>::exchange_ghost_cells_SZ(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
+                          MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right, Real tol)
+{
+    MPI_Status status;
+    size_t total_buffer = (local_ny+2)*(local_nx+2);
+    std::vector<Real> recv_buf(total_buffer*4);
+    // compressed buffer
+    std::vector<char> recv_buf_compressed(total_buffer*4*sizeof(Real));
+
+    // compression parameters
+    SZ3::Config conf(local_nx+2, local_ny+2); 
+    conf.cmprAlgo = SZ3::ALGO_INTERP_LORENZO; 
+    conf.errorBoundMode = SZ3::EB_ABS; 
+    conf.absErrorBound = tol; // absolute error bound
+    size_t compressed_size = total_buffer * sizeof(Real);
+    size_t recv_size_up, recv_size_down, recv_size_left, recv_size_right;
+
+    // compression the entire sub-domain
+    char *bufferOut = (char *) malloc(compressed_size);
+    void *compressed_data = bufferOut;
+
+    compressed_data = SZ_compress(conf, grid.data(), compressed_size);
+
+    MPI_Barrier(cart_comm);
+    // Up/down communication (rows) the compressed size
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, up, 0,
+                 &recv_size_down, 1, MPI_UNSIGNED_LONG, down, 0, cart_comm, &status);
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, down, 1,
+                 &recv_size_up, 1, MPI_UNSIGNED_LONG, up, 1, cart_comm, &status);
+    // Left/right communication (columns) the compressed size
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, left, 2,
+                 &recv_size_right, 1, MPI_UNSIGNED_LONG, right, 2, cart_comm, &status);
+    MPI_Sendrecv(&compressed_size, 1, MPI_UNSIGNED_LONG, right, 3,
+                 &recv_size_left, 1, MPI_UNSIGNED_LONG, left, 3, cart_comm, &status);
+
+    MPI_Barrier(cart_comm);
+    //std::cout << "compressed data = " << compressed_size << ", received size up = " << recv_size_up << ", down = " << recv_size_down <<", left = " << recv_size_left << ", right = " << recv_size_right << "\n";
+
+    // Up/down communication (rows) the compressed data
+    char *recv_compressed_up = recv_buf_compressed.data();
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, down, 5,
+                 recv_compressed_up, recv_size_up, MPI_BYTE, up, 5, cart_comm, &status);
+    char *recv_compressed_down = recv_buf_compressed.data() + recv_size_up;
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, up, 4,
+                 recv_compressed_down, recv_size_down, MPI_BYTE, down, 4, cart_comm, &status);
+    // Left/right communication (columns) the compressed data
+    char *recv_compressed_left = recv_buf_compressed.data() + recv_size_up + recv_size_down;
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, right, 7,
+                 recv_compressed_left, recv_size_left, MPI_BYTE, left, 7, cart_comm, &status);
+    char *recv_compressed_right = recv_buf_compressed.data() +recv_size_up+recv_size_down+recv_size_left;
+    MPI_Sendrecv(compressed_data, compressed_size, MPI_BYTE, left, 6,
+                 recv_compressed_right, recv_size_right, MPI_BYTE, right, 6, cart_comm, &status);
+
+    // Decompression
+    Real *recv_buf_up = recv_buf.data();
+    SZ_decompress(conf, recv_compressed_up, recv_size_up, recv_buf_up);
+
+    Real *recv_buf_down = (recv_buf.data() + total_buffer);
+    SZ_decompress(conf, recv_compressed_down, recv_size_down, recv_buf_down);
+
+    Real *recv_buf_left = (recv_buf.data() + 2*total_buffer);
+    SZ_decompress(conf, recv_compressed_left, recv_size_left, recv_buf_left);
+
+    Real *recv_buf_right = (recv_buf.data() + 3*total_buffer);
+    SZ_decompress(conf, recv_compressed_right, recv_size_right, recv_buf_right);
+
+    // copy back to the current grid
+    // Up
+    double *recv_buf_ptr = recv_buf.data() + total_buffer - 2*ny + 1;
+    for (size_t j = 0; j < local_ny; ++j) {
+        grid[idx(0, j + 1, ny)] = *(recv_buf_ptr++);
+    }
+    // Down
+    recv_buf_ptr = recv_buf.data() + total_buffer + ny + 1;
+    for (size_t j = 0; j < local_ny; ++j) {
+        grid[idx(local_nx + 1, j + 1, ny)] = *(recv_buf_ptr++);
+    }
+    // Left
+    recv_buf_ptr = recv_buf.data() + (total_buffer  + ny - 1) * 2;
+    for (size_t i = 0; i < local_nx; ++i) {
+        grid[idx(i + 1, 0, ny)] = *recv_buf_ptr;
+        recv_buf_ptr += ny;
+    }
+    // Right
+    recv_buf_ptr = recv_buf.data() + total_buffer * 3 + ny + 1;
+    for (size_t i = 0; i < local_nx; ++i) {
+        grid[idx(i + 1, local_ny + 1, ny)] = *recv_buf_ptr;
+        recv_buf_ptr += ny;
+    }
+    free(bufferOut);
+    return compressed_size;
+}
+
+    
 /*
 // Exchange ghost cells with neighbors with compression on edge nodes only
 template<typename Real>
@@ -376,13 +473,17 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     size_t mpi_size = 0;
 
     // k1
-    if (parallel.compression && (tol_u>0)) {
+    if ((parallel.compression==1) && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(u_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
-    }  else {
+    } else if ((parallel.compression==2) && (tol_u>0)) { 
+        mpi_size += exchange_ghost_cells_SZ(u_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u);
+    } else {
         exchange_ghost_cells(u_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
-    if (parallel.compression && (tol_v>0)) {
+    if ((parallel.compression==1) && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(v_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else if ((parallel.compression==2) && (tol_v>0)) {
+        mpi_size += exchange_ghost_cells_SZ(v_n, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
     } else {
         exchange_ghost_cells(v_n, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
@@ -400,13 +501,17 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     }
     
     // k2
-    if (parallel.compression && (tol_u>0)) {
+    if ((parallel.compression==1) && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+    } else if ((parallel.compression==2) && (tol_u>0)) { 
+        mpi_size += exchange_ghost_cells_SZ(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     if (parallel.compression && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else if ((parallel.compression==2) && (tol_v>0)) { 
+        mpi_size += exchange_ghost_cells_SZ(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
     } else {
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
@@ -425,11 +530,15 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     // k3
     if (parallel.compression && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+    } else if ((parallel.compression==2) && (tol_u>0)) {
+        mpi_size += exchange_ghost_cells_SZ(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     if (parallel.compression && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else if ((parallel.compression==2) && (tol_v>0)) {
+        mpi_size += exchange_ghost_cells_SZ(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
     } else {
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
@@ -448,11 +557,15 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     // k4
     if (parallel.compression && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
+    } else if ((parallel.compression==2) && (tol_u>0)) {
+        mpi_size += exchange_ghost_cells_SZ(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
     if (parallel.compression && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
+    } else if ((parallel.compression==2) && (tol_v>0)) {
+        mpi_size += exchange_ghost_cells_SZ(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
     } else {
         exchange_ghost_cells(vt, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }

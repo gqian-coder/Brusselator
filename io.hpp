@@ -35,7 +35,7 @@ struct parallel_data {
     int boundary_rank;         /* 0 not at boundary; 1 up; 2 down; 3 right; 4 left; 5 front; 6 back*/ 
     MPI_Comm comm;             /* Cartesian communicator */
     MPI_Datatype datatype;     /* MPI Datatype for file view in restart I/O */
-    bool compression;          /* whether to compress the MPI communication */
+    int compression;           /* 0: non MPI compression; 1: MGARD compress for MPI; 2: SZ compression */
     Real tol_u;                /* Absolute error bound defined under snorm */
     Real tol_v;                
     Real snorm;                /* MGARD compression snorm */
@@ -46,7 +46,7 @@ struct parallel_data {
 template <typename Real>
 void initialize_mpi_bound(parallel_data<Real> &parallelization, int nDim,
                         int rank, int np_size, MPI_Comm comm,
-                        bool compression, Real tol_u, Real tol_v, Real snorm);
+                        int compression, Real tol_u, Real tol_v, Real snorm);
 
 void initialize_mpi_dataField(field &fieldData, size_t Dx, size_t Dy, size_t Dz,
                                     int *dims, int *coords);
