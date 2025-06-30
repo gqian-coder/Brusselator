@@ -508,7 +508,7 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
-    if (parallel.compression && (tol_v>0)) {
+    if ((parallel.compression==1) && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else if ((parallel.compression==2) && (tol_v>0)) { 
         mpi_size += exchange_ghost_cells_SZ(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
@@ -528,14 +528,14 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     }
 
     // k3
-    if (parallel.compression && (tol_u>0)) {
+    if ((parallel.compression==1) && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
     } else if ((parallel.compression==2) && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_SZ(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
-    if (parallel.compression && (tol_v>0)) {
+    if ((parallel.compression==1) && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else if ((parallel.compression==2) && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_SZ(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
@@ -555,14 +555,14 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     }
 
     // k4
-    if (parallel.compression && (tol_u>0)) {
+    if ((parallel.compression==1) && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_mgr(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u, mgr_s);
     } else if ((parallel.compression==2) && (tol_u>0)) {
         mpi_size += exchange_ghost_cells_SZ(ut, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_u);
     } else {
         exchange_ghost_cells(ut, nx, ny, ny + 2, datatype, cart_comm, up, down, left, right);
     }
-    if (parallel.compression && (tol_v>0)) {
+    if ((parallel.compression==1) && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_mgr(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v, mgr_s);
     } else if ((parallel.compression==2) && (tol_v>0)) {
         mpi_size += exchange_ghost_cells_SZ(vt, nx, ny, ny + 2, cart_comm, up, down, left, right, tol_v);
