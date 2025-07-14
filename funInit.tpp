@@ -41,11 +41,12 @@ void fun_Gaussian_pulse(Real *u, Real freq, Real t0, Real A, size_t xsrc, size_t
 template <typename Real>
 void fun_cos_waves(Real *u, Real *v, field dField, Real A, Real freq)
 {
+    size_t buffer_L = dField.ghostZ_len * 2;
     for (size_t i=1; i<=dField.nx; i++) {
         for (size_t j=1; j<=dField.ny; j++) {
-            size_t id = idx_2d(i, j, dField.ny+2);
-            double x = (dField.nx_start + i - 1) * freq;
-            double y = (dField.ny_start + j - 1) * freq;
+            size_t id = idx_2d(i, j, dField.ny+buffer_L);
+            double x = (dField.nx_start + i - dField.ghostZ_len) * freq;
+            double y = (dField.ny_start + j - dField.ghostZ_len) * freq;
             u[id] += A * cos(M_PI * x) * cos(M_PI * y); 
             v[id] += A * cos(2 * M_PI * x) * cos(2 * M_PI * y);
         }
@@ -72,28 +73,29 @@ void fun_rainDrop(Real *u, Real *v, field dField,
     size_t y = static_cast<size_t>(random_y * dField.ny_full - cy);
     size_t z = (dField.nz_full>1) ? static_cast<size_t>(random_z * dField.nz_full - cz) : 0;
     //std::cout << "center of rain drop: " << x+cx << ", " << y+cy << ", " << z+cz << "\n";
-    size_t dim1  = (dField.nz>1) ? (dField.ny+2) * (dField.nz+2) : dField.ny+2; 
-    size_t dimD1 = NDy * NDz;
+    size_t buffer_L = dField.ghostZ_len * 2;
+    size_t dim1     = (dField.nz>1) ? (dField.ny+buffer_L) * (dField.nz+buffer_L) : dField.ny+buffer_L; 
+    size_t dimD1    = NDy * NDz;
     size_t offset_x, offset_y, k; 
     size_t local_x, local_y, local_z;
     for (size_t r=0; r<NDx; r++) {
         if ((r+x<dField.nx_start) || (r+x>=dField.nx_start+dField.nx)) {
             continue;
         } else {
-            local_x = r+x+1 - dField.nx_start; 
+            local_x = r+x+dField.ghostZ_len - dField.nx_start; 
             offset_x = local_x*dim1;
             for (size_t c=0; c<NDy; c++) {
                 if ((c+y<dField.ny_start) || (c+y>=dField.ny_start+dField.ny)) {
                     continue;
                 } else {
                     //if ((dField.ny_start==400) && (c==200)) std::cout << "edge assign values @ " << c+y << "\n";
-                    local_y = c+y+1-dField.ny_start;
-                    offset_y = (dField.nz>1) ? local_y*(dField.nz+2) : local_y;
+                    local_y = c+y+dField.ghostZ_len-dField.ny_start;
+                    offset_y = (dField.nz>1) ? local_y*(dField.nz+buffer_L) : local_y;
                     for (size_t h=0; h<NDz; h++) {
                         if ((dField.nz>1) && ((h+z<dField.nz_start) || (h+z>=dField.nz_start+dField.nz))) {
                             continue;
                         } else {
-                            local_z = (dField.nz>1) ? (h+z+1-dField.nz_start) : 0;
+                            local_z = (dField.nz>1) ? (h+z+dField.ghostZ_len-dField.nz_start) : 0;
                             k = offset_x + offset_y + local_z;
                             u[k] += gauss_template[r*dimD1+c*NDz+h];
                             v[k] += gauss_template[r*dimD1+c*NDz+h];
@@ -114,6 +116,7 @@ void fun_MultiRainDrop(Real *u, Real *v, field dField, size_t NDx, size_t NDy, s
     size_t cx = (size_t)(NDx/2);
     size_t cy = (size_t)(NDy/2);
     size_t cz = (size_t)(NDz/2);
+    size_t buffer_L = dField.ghostZ_len * 2;
     //std::cout << "probability: " << random_number << "\n";
     // try not to generate rain drops closing to edges
     for (size_t d=0; d<nDrops; d++) {
@@ -128,7 +131,7 @@ void fun_MultiRainDrop(Real *u, Real *v, field dField, size_t NDx, size_t NDy, s
         size_t y = static_cast<size_t>(random_y * dField.ny_full-cy);
         size_t z = static_cast<size_t>(random_z * dField.nz_full-cz);
         //std::cout << "x, y, z = " << x << ", " << y  << ", "<< z << ", " << cx << ", " << cy << ", " << cz << ", " << NDx << ", " << NDy << ", " << NDz << ", " << dField.nx << ", " << dField.ny << ", " << dField.nz << "\n";
-        size_t dim1  = (dField.nz>1) ? (dField.ny+2) * (dField.nz+2) : (dField.ny+2);
+        size_t dim1  = (dField.nz>1) ? (dField.ny+buffer_L) * (dField.nz+buffer_L) : (dField.ny+buffer_L);
         size_t dimD1 = NDy * NDz;
         size_t offset_x, offset_y, k;
         size_t local_x, local_y, local_z;
@@ -137,19 +140,19 @@ void fun_MultiRainDrop(Real *u, Real *v, field dField, size_t NDx, size_t NDy, s
             if ((r+x<dField.nx_start) || (r+x>=dField.nx_start+dField.nx)) {
                 continue;
             } else {
-                local_x = r+x+1 - dField.nx_start;
+                local_x = r+x+dField.ghostZ_len - dField.nx_start;
                 offset_x = local_x*dim1;
                 for (size_t c=0; c<NDy; c++) {
                     if ((c+y<dField.ny_start) || (c+y>=dField.ny_start+dField.ny)) {
                         continue;
                     } else {
-                        local_y = c+y+1-dField.ny_start;
+                        local_y = c+y+dField.ghostZ_len-dField.ny_start;
                         offset_y = (dField.nz>1) ? local_y*dField.nz : local_y;
                         for (size_t h=0; h<NDz; h++) {
                             if ((dField.nz>1) && ((h+z<dField.nz_start) || (h+z>=dField.nz_start+dField.nz))) {
                                 continue;
                             } else {
-                                local_z = (dField.nz>1) ? (h+z+1-dField.nz_start) : 0;
+                                local_z = (dField.nz>1) ? (h+z+dField.ghostZ_len-dField.nz_start) : 0;
                                 k = offset_x + offset_y + local_z;
                                 u[k] += intensity*gauss_template[r*dimD1+c*NDz+h];
                                 v[k] += intensity*gauss_template[r*dimD1+c*NDz+h];

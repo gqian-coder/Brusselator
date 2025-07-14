@@ -21,6 +21,7 @@ typedef struct {
     size_t nx_full;                /* Global dimensions of the field */
     size_t ny_full;                /* Global dimensions of the field */
     size_t nz_full;
+    size_t ghostZ_len;             /* Width of ghost zone used for MPI communication */
 } field;
 
 /* Datatype for basic parallelization information */
@@ -30,7 +31,9 @@ struct parallel_data {
     int rank;
     size_t ncol;
     size_t nrow;
-    int up, down, left, right, front, back; /* Ranks of neighbouring MPI tasks */
+    int up, down, left, right; /* Ranks of neighbouring MPI tasks */
+    int left_up, left_down, right_up, right_down; /* Ranks of neighbouring in the diagnol directions */
+    int front, back;           /* save these entries for 3D */ 
     // boundary
     int boundary_rank;         /* 0 not at boundary; 1 up; 2 down; 3 right; 4 left; 5 front; 6 back*/ 
     MPI_Comm comm;             /* Cartesian communicator */
@@ -49,7 +52,7 @@ void initialize_mpi_bound(parallel_data<Real> &parallelization, int nDim,
                         int compression, Real tol_u, Real tol_v, Real snorm);
 
 void initialize_mpi_dataField(field &fieldData, size_t Dx, size_t Dy, size_t Dz,
-                                    int *dims, int *coords);
+                              size_t ghostZ_len, int *dims, int *coords);
 
 #include "io.tpp"
 #endif 

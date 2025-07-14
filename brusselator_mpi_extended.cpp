@@ -33,12 +33,13 @@ double Dv = 9.0;
 // Helper to index 2D arrays stored in 1D
 inline int idx(int i, int j, int ny) { return i * ny + j; }
 
-void copy_internal_data(double *copy_buff, double *data_buff, size_t nx, size_t ny, size_t ny_full)
+void copy_internal_data(double *copy_buff, double *data_buff, size_t nx, size_t ny, size_t ghostZ)
 {
     size_t offset, offset_full;
-    for (size_t i=1; i<=nx; i++) {
-        offset      = (i-1) * ny;
-        offset_full = i*ny_full+1;
+    size_t extended_ny = ghostZ*2 + ny;
+    for (size_t i=ghostZ; i<nx+ghostZ; i++) {
+        offset      = (i-ghostZ) * ny;
+        offset_full = i*extended_ny+ghostZ;
         memcpy(&copy_buff[offset], &data_buff[offset_full], sizeof(double)*ny);
     }
 }
@@ -108,7 +109,7 @@ int main(int argc, char** argv) {
 
     field fieldData;
     // using extended ghost zone for optimized compression 
-    size_t ghostZ_len = 1; 
+    size_t ghostZ_len = 4; 
     initialize_mpi_dataField(fieldData, Nx, Ny, 1, ghostZ_len, dims.data(), coords.data());
     dualSystemEquation<double> dualSys(fieldData, dt, dh, ghostZ_len, Du, Dv, A, B);
     if (rank==0) {
@@ -238,21 +239,21 @@ int main(int argc, char** argv) {
         //}
         if (t % wt_interval == 0) {
             writer.BeginStep();
-            copy_internal_data(internal_data.data(), dualSys.u_n.data(), fieldData.nx, fieldData.ny, fieldData.ny+2);
+            copy_internal_data(internal_data.data(), dualSys.u_n.data(), fieldData.nx, fieldData.ny, ghostZ_len);
             writer.Put(var_u, internal_data.data(), adios2::Mode::Sync);
-            copy_internal_data(internal_data.data(), dualSys.v_n.data(), fieldData.nx, fieldData.ny, fieldData.ny+2);
+            copy_internal_data(internal_data.data(), dualSys.v_n.data(), fieldData.nx, fieldData.ny, ghostZ_len);
             writer.Put(var_v, internal_data.data(), adios2::Mode::Sync);
             writer.PerformPuts();
             writer.EndStep(); 
             if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
         }
-        mpi_size_rk += dualSys.rk4_step_2d(parallelization);
+        mpi_size_rk += dualSys.rk4_step_2d_extendedGhostZ(parallelization);
     }
 
     MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
     std::cout << "Rank " << rank << ": s = " << snorm << ", MPI message CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * 4 * sizeof(double) * 2 / (double)mpi_size_rk << "\n"; 
     if (rank == 0) {
-        std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)(Nx * Ny) * 4 * sizeof(double) * 2 / (double)mpi_size_total <<"\n"; 
+        std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)((fieldData.nx+2*ghostZ_len) * (fieldData.ny+2*ghostZ_len)) * size * sizeof(double) * 2 / (double)mpi_size_total <<"\n"; 
     }
  
     writer.Close();

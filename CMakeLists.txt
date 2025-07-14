@@ -25,3 +25,8 @@ target_link_libraries(brusselator_mpi adios2::adios2 MPI::MPI_C mgard::mgard ${Z
 
 add_executable(errCalc errCalc.cpp)
 target_link_libraries(errCalc adios2::adios2 MPI::MPI_C)
+
+
+add_executable(brusselator_mpi_extended brusselator_mpi_extended.cpp io.tpp dualSystemEq.tpp funInit.tpp)
+target_include_directories(brusselator_mpi_extended PRIVATE ${SZ3_INCLUDES} ${ZSTD_INCLUDES})
+target_link_libraries(brusselator_mpi_extended adios2::adios2 MPI::MPI_C mgard::mgard ${ZSTD_LIB} ${SZ3_LIB})
