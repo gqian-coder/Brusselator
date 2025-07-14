@@ -31,7 +31,7 @@ void dualSystemEquation<Real>::init_u_2d(Real *data)
     size_t buffer_L = ghostZ_len * 2;
     for (size_t i=0; i<dField.nx; i++) {
         std::copy(data+i*dField.ny, data+i*dField.ny+dField.ny, 
-                  u_n.data()+(i+dField.ny+ghostZ_len)*(dField.ny+buffer_L) + ghostZ_len);
+                  u_n.data()+(i+ghostZ_len)*(dField.ny+buffer_L) + ghostZ_len);
     }
 }
 
