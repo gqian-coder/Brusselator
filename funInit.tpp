@@ -124,6 +124,10 @@ void fun_MultiRainDrop(Real *u, Real *v, field dField, size_t NDx, size_t NDy, s
         std::vector<float> py  = {0.35, 0.3, 0.725, 0.65};
         std::vector<float> pz  = {0.34, 0.56, 0.75, 0.25};
         std::vector<float> mag = {0.7, 0.5, 0.85, 0.6};
+        //std::vector<float> px  = {0.375, 0.65, 0.45, 0.63};
+        //std::vector<float> py  = {0.45, 0.4, 0.725, 0.65};
+        //std::vector<float> pz  = {0.44, 0.56, 0.75, 0.35};
+        //std::vector<float> mag = {0.6, 0.5, 0.65, 0.6};
         float random_x = px[d];
         float random_y = py[d];
         float random_z = pz[d];

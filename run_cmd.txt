@@ -1,0 +1,21 @@
+1) No compression
+mpirun -np 25 ./brusselator_mpi 0 1e-5 1e-5 0 2 100 100 0.1 2.5e-4 40 50 Gaussian4Disk_T100/brusselator_mpi_A_05_B_3_T50.bp
+
+2) Compression MPI
+mpirun -np 25 ./brusselator_mpi 1 1e-5 1e-5 0 2 100 100 0.1 2.5e-4 50 50 Gaussian4Disk_T100/brusselator_mpi_A_05_B_3_T50_s0_eb_1e-5.bp
+
+3) New code: compression checkpoint
+# no compression -- write out data at every timestep
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 2 192.75 192.75 0.15 6e-4 51 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ori.bp
+
+# compress a checkpoint data: using a single rank/GPU  
+# compress @ 1.5s
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 2500 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ori.bp
+
+# restart
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 49.5 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts2500.bp
+
+# compress @ 6s
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 10000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ori.bp
+
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 45 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts10000.bp

@@ -268,8 +268,6 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended(std::vector<Real>& grid
                           size_t left_up, size_t left_down, size_t right_up, size_t right_down)
 {
     MPI_Status status;
-    int my_rank;
-    MPI_Comm_rank(cart_comm, &my_rank);
     size_t buffer_L = ghostZ_len * 2;
     size_t local_nx     = nx - buffer_L;
     size_t local_ny     = ny - buffer_L;
@@ -340,6 +338,18 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended(std::vector<Real>& grid
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(i, ghostZ_len, ny)]);
         recv_buf_ptr += local_ny;
     }
+    /* 
+    int my_rank;
+    MPI_Comm_rank(cart_comm, &my_rank);
+    if ((my_rank==0) || (my_rank==4) || (my_rank==15) || (my_rank==19) || (my_rank==20) || (my_rank==24)) {
+        char filename[256];
+        sprintf(filename, "viz_UpMPI_rank_%d.bin", my_rank);
+        FILE *fp = fopen(filename, "wb");
+        fwrite(recv_buf.data(), sizeof(Real), local_nx*local_ny, fp);
+        fclose(fp);
+    }
+    */
+    
     // Down: skip the ghost zone on the top
     recv_buf_ptr     = recv_buf.data() + total_buffer;
     for (size_t i=0; i<ghostZ_len; i++) {
@@ -398,8 +408,6 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended_mgr(std::vector<Real>& 
                           Real tol, Real s)
 {
     MPI_Status status;
-    int my_rank;
-    MPI_Comm_rank(cart_comm, &my_rank);
     size_t buffer_L = ghostZ_len * 2;
     size_t local_nx     = nx - buffer_L;
     size_t local_ny     = ny - buffer_L;
@@ -441,7 +449,6 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended_mgr(std::vector<Real>& 
     mgard_x::compress(2, mgard_x::data_type::Double, data_shape, tol, s,
                 mgard_x::error_bound_type::ABS, data_buffer.data(),
                 compressed_data, compressed_size, config, true);
-    // std::cout << "rank " << my_rank << ": compressed size = " << compressed_size << "\n"; 
 
     MPI_Barrier(cart_comm);
     // Up/down communication (rows) the compressed size
@@ -551,49 +558,62 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended_mgr(std::vector<Real>& 
     size_t start_row     = local_nx + ghostZ_len;
     size_t start_col     = ghostZ_len + local_ny;
     size_t skipZone_up   = (local_nx - ghostZ_len) * local_ny;
-    // Up: skip the ghost zone on the bottom
+    // Up
     double *recv_buf_ptr = recv_buf.data() + skipZone_up;
     for (size_t i=0; i<ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(i, ghostZ_len, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Down: skip the ghost zone on the top
+
+    /* 
+    int my_rank;
+    MPI_Comm_rank(cart_comm, &my_rank);
+    if ((my_rank==0) || (my_rank==4) || (my_rank==15) || (my_rank==19) || (my_rank==20) || (my_rank==24)) {
+        char filename[256];
+        sprintf(filename, "viz_UpMPI_rank_%d.bin", my_rank);
+        FILE *fp = fopen(filename, "wb");
+        fwrite(recv_buf.data(), sizeof(Real), local_nx*local_ny, fp);
+        fclose(fp);
+    } 
+    */
+    
+    // Down
     recv_buf_ptr     = recv_buf.data() + total_buffer;
     for (size_t i=0; i<ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(start_row+i, ghostZ_len, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Left: skip the ghost zone on the right
+    // Left
     recv_buf_ptr = recv_buf.data() + total_buffer*2 + local_nx - ghostZ_len;
     for (size_t i = 0; i < local_nx; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + ghostZ_len, &grid[idx(ghostZ_len+i, 0, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Right: skip the ghost zone on the left
+    // Right
     recv_buf_ptr = recv_buf.data() + total_buffer*3;
     for (size_t i = 0; i < local_nx; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + ghostZ_len, &grid[idx(ghostZ_len+i, start_col, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Left up: the bottom piece from the left up neighbor
+    // Left up
     recv_buf_ptr = recv_buf.data() + total_buffer*4 + skipZone_up + local_ny - ghostZ_len;
     for (size_t i = 0; i < ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + ghostZ_len, &grid[idx(i, 0, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Left down: the up piece from the left down neighbor
+    // Left down
     recv_buf_ptr = recv_buf.data() + total_buffer*5 + local_ny - ghostZ_len;
     for (size_t i = 0; i < ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + ghostZ_len, &grid[idx(start_row+i, 0, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Right up: the bottom piece from the right up neighbor
+    // Right up
     recv_buf_ptr = recv_buf.data() + total_buffer*6 + skipZone_up;
     for (size_t i = 0; i < ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + ghostZ_len, &grid[idx(i, start_col, ny)]);
         recv_buf_ptr += local_ny;
     }
-    // Right down: the up piece from the right down neighbor
+    // Right down
     recv_buf_ptr = recv_buf.data() + total_buffer*7;
     for (size_t i = 0; i < ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + ghostZ_len, &grid[idx(start_row+i, start_col, ny)]);
@@ -1247,9 +1267,9 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ(parallel_data<Real> 
     size_t size = (nx + bufferL) * (ny + bufferL);
     size_t extended_ny = ny + bufferL;
     size_t extended_nx = nx + bufferL;
-    std::vector<double> k1u(size), k2u(size), k3u(size), k4u(size);
-    std::vector<double> k1v(size), k2v(size), k3v(size), k4v(size);
-    std::vector<double> Lu(size), Lv(size), ut(size), vt(size);    
+    std::vector<Real> k1u(size), k2u(size), k3u(size), k4u(size);
+    std::vector<Real> k1v(size), k2v(size), k3v(size), k4v(size);
+    std::vector<Real> Lu(size), Lv(size), ut(size), vt(size);    
 
     MPI_Datatype datatype = parallel.datatype;
     MPI_Comm cart_comm    = parallel.comm;
@@ -1284,6 +1304,18 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ(parallel_data<Real> 
         mpi_size += exchange_ghost_extended_mgr(v_n, extended_nx, extended_ny, cart_comm, up, down, left, right,
                                                 left_up, left_down, right_up, right_down, tol_v, mgr_s);
     }
+
+    /* 
+    int my_rank;
+    MPI_Comm_rank(cart_comm, &my_rank);
+    if ((my_rank==0) || (my_rank==4) || (my_rank==15) || (my_rank==19) || (my_rank==20) || (my_rank==24)) {
+        char filename[256];
+        sprintf(filename, "viz_ghostEx_rank_%d.bin", my_rank);
+        FILE *fp = fopen(filename, "wb");
+        fwrite(u_n.data(), sizeof(Real), extended_nx*extended_ny, fp);
+        fclose(fp);
+    }
+    */
 
     // k1
     // ghost zone has been filled up with boundary data

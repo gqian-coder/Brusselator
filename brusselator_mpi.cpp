@@ -228,14 +228,6 @@ int main(int argc, char** argv) {
 
     //bool mid_rank = ((coords[0]==(int)std::floor(dims[0]/2)) && (coords[1]==(int)std::floor(dims[1]/2)));
     for (size_t t = 0; t <= steps; ++t) {
-        //auto [min_it, max_it] = std::minmax_element(dualSys.u_n.begin(), dualSys.u_n.end());
-        //auto [min_v, max_v] = std::minmax_element(dualSys.v_n.begin(), dualSys.v_n.end());
-        //if (coords[0]==(int)std::floor(dims[0]/2)) {
-        //if (mid_rank) {
-        //    std::cout << "step " << t << "/" << steps << "\n";
-        //    std::cout << "Rank " << rank << " the min and max of u_n = " << *min_it << ", " << *max_it << "\n";
-        //    std::cout << "Rank " << rank << " the min and max of v_n = " << *min_v << ", " << *max_v << "\n";
-        //}
         if (t % wt_interval == 0) {
             writer.BeginStep();
             copy_internal_data(internal_data.data(), dualSys.u_n.data(), fieldData.nx, fieldData.ny, fieldData.ny+2);

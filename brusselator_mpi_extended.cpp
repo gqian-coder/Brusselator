@@ -65,13 +65,20 @@ int main(int argc, char** argv) {
     }
 
     int cnt_argv = 1;
-    int compression  = std::stoi(argv[cnt_argv++]);
+    // compress checkpoint data (timestep output compressed)
+    int compression_cpt = std::stoi(argv[cnt_argv++]);
+    // when checkpoint compression is on, compression_mpi will be off 
+    int compression_mpi = std::stoi(argv[cnt_argv++]);
+    if (compression_cpt) {
+        compression_mpi = false;
+    }
+    // tolerance used for either checkpoint or mpi compression
     double tol_u     = std::stof(argv[cnt_argv++]);
     double tol_v     = std::stof(argv[cnt_argv++]);
     double snorm = std::stof(argv[cnt_argv++]);   
 
     parallel_data<double> parallelization; //!< Parallelization info
-    initialize_mpi_bound<double>(parallelization, 2, rank, size, cart_comm, compression, tol_u, tol_v, snorm);
+    initialize_mpi_bound<double>(parallelization, 2, rank, size, cart_comm, compression_mpi, tol_u, tol_v, snorm);
     std::cout << "Rank " << rank << " coordinates: {" << coords[0] << ", " << coords[1] << "}, up = " << parallelization.up << ", down = " << parallelization.down << ", left = " << parallelization.left << ", right = " << parallelization.right<< ", ";
     std::cout << "left up = " << parallelization.left_up << ", left down = " << parallelization.left_down << ", right up = " << parallelization.right_up << ", right down = " << parallelization.right_down << "\n";
 
@@ -91,7 +98,7 @@ int main(int argc, char** argv) {
     size_t Nx = (size_t)std::ceil((double)Lx / dh) ;
     size_t Ny = (size_t)std::ceil((double)Ly / dh) ;
     if (rank==0) {
-        std::cout << "Compression flag " << (int)compression << ", eb = " << tol_u << ", snorm = " << snorm << "\n"; 
+        std::cout << "Checkpoint compression flag " << (int)compression_cpt << ", MPI compression flag " << (int)compression_mpi << ", eb = " << tol_u << ", snorm = " << snorm << "\n"; 
         std::cout << "init fun = " << init_fun << ", " << "Lx = " << Lx << ", Ly = " << Ly << ", dh = " << dh << ", dt = " << dt <<  ", T = " << T << ", total steps = " << steps <<  ", wt_interval = " << wt_interval << ", Nx = " << Nx << ", " << Ny << "\n";
     }
 
@@ -224,39 +231,82 @@ int main(int argc, char** argv) {
 
     adios2::Engine writer = io.Open(filename, adios2::Mode::Write);
 
-    std::vector<double> internal_data(fieldData.nx*fieldData.ny);
+    std::vector<double> internal_u(fieldData.nx*fieldData.ny);
+    std::vector<double> internal_v(fieldData.nx*fieldData.ny);
     size_t mpi_size_rk = 0, mpi_size_total = 0;
 
     //bool mid_rank = ((coords[0]==(int)std::floor(dims[0]/2)) && (coords[1]==(int)std::floor(dims[1]/2)));
+    void *compressed_u = NULL, *compressed_v = NULL;
+    std::vector<mgard_x::SIZE> mgard_shape{fieldData.nx, fieldData.ny};
+    size_t compressed_size_u = 0, compressed_size_v = 0, compressed_total_u, compressed_total_v, temp_cp_size;
+    // compression parameters
+    mgard_x::Config config;
+    size_t fieldSz = fieldData.nx*fieldData.ny*sizeof(double);
+    if (compression_cpt) {
+        compressed_u = (void *)malloc(sizeof(double) * fieldData.nx*fieldData.ny);
+        compressed_v = (void *)malloc(sizeof(double) * fieldData.nx*fieldData.ny);
+        config.lossless = mgard_x::lossless_type::Huffman_Zstd;
+        config.normalize_coordinates = true;
+        config.dev_type = mgard_x::device_type::CUDA;
+    }
     for (size_t t = 0; t <= steps; ++t) {
-        //auto [min_it, max_it] = std::minmax_element(dualSys.u_n.begin(), dualSys.u_n.end());
-        //auto [min_v, max_v] = std::minmax_element(dualSys.v_n.begin(), dualSys.v_n.end());
-        //if (coords[0]==(int)std::floor(dims[0]/2)) {
-        //if (mid_rank) {
-        //    std::cout << "step " << t << "/" << steps << "\n";
-        //    std::cout << "Rank " << rank << " the min and max of u_n = " << *min_it << ", " << *max_it << "\n";
-        //    std::cout << "Rank " << rank << " the min and max of v_n = " << *min_v << ", " << *max_v << "\n";
-        //}
         if (t % wt_interval == 0) {
             writer.BeginStep();
-            copy_internal_data(internal_data.data(), dualSys.u_n.data(), fieldData.nx, fieldData.ny, ghostZ_len);
-            writer.Put(var_u, internal_data.data(), adios2::Mode::Sync);
-            copy_internal_data(internal_data.data(), dualSys.v_n.data(), fieldData.nx, fieldData.ny, ghostZ_len);
-            writer.Put(var_v, internal_data.data(), adios2::Mode::Sync);
+            copy_internal_data(internal_u.data(), dualSys.u_n.data(), fieldData.nx, fieldData.ny, ghostZ_len);
+            if (compression_cpt) {
+                temp_cp_size = fieldSz;
+                mgard_x::compress(2, mgard_x::data_type::Double, mgard_shape, tol_u, snorm,
+                        mgard_x::error_bound_type::ABS, internal_u.data(),
+                        compressed_u, temp_cp_size, config, true);
+                compressed_size_u += temp_cp_size;
+                // write out decompressed data to checkpoint file (so restart does not need to decompress)
+                void *decompress_pt = static_cast<void*>(internal_u.data());
+                mgard_x::decompress(compressed_u, temp_cp_size, decompress_pt, config, true);
+                // writer.Put(var_u, (double *)compressed_u, adios2::Mode::Sync);
+            } 
+            writer.Put(var_u, internal_u.data(), adios2::Mode::Sync);
+            
+            copy_internal_data(internal_v.data(), dualSys.v_n.data(), fieldData.nx, fieldData.ny, ghostZ_len);
+            if (compression_cpt) {
+                temp_cp_size = fieldSz;
+                mgard_x::compress(2, mgard_x::data_type::Double, mgard_shape, tol_v, snorm,
+                        mgard_x::error_bound_type::ABS, internal_v.data(),
+                        compressed_v, temp_cp_size, config, true);
+                compressed_size_v += temp_cp_size;
+                void *decompress_pt = static_cast<void*>(internal_v.data());
+                mgard_x::decompress(compressed_v, temp_cp_size, decompress_pt, config, true);
+                // writer.Put(var_v, (double *)compressed_v, adios2::Mode::Sync);
+            }
+            writer.Put(var_v, internal_v.data(), adios2::Mode::Sync);
+            
             writer.PerformPuts();
             writer.EndStep(); 
             if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
         }
         mpi_size_rk += dualSys.rk4_step_2d_extendedGhostZ(parallelization);
     }
-
-    MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (compression_mpi) {
+        MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    } 
+    if (compression_cpt) {
+        MPI_Reduce(&compressed_size_u, &compressed_total_u, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&compressed_size_v, &compressed_total_v, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+    }
     std::cout << "Rank " << rank << ": s = " << snorm << ", MPI message CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * sizeof(double) * 2 / (double)mpi_size_rk << "\n"; 
     if (rank == 0) {
-        std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * size * sizeof(double) * 2 / (double)mpi_size_total <<"\n"; 
+        if (compression_mpi) {
+            std::cout << "Total compressed MPI message size = " << mpi_size_total << ", CR = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * size * sizeof(double) * 2 / (double)mpi_size_total <<"\n"; 
+        }
+        if (compression_cpt){
+            std::cout << "Total compressed checkpoint CR(u) = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * size * sizeof(double) / (double)compressed_total_u << ", CR(v) = " << (double)steps * (double)(fieldData.nx * fieldData.ny) * size * sizeof(double) / (double)compressed_total_v << "\n"; 
+        }
     }
  
     writer.Close();
+    if (compression_cpt) {
+        free(compressed_u);
+        free(compressed_v);
+    }
     MPI_Finalize();
     return 0;
 }
