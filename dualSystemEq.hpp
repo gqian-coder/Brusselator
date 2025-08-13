@@ -16,6 +16,8 @@ public:
     size_t rk4_step_2d(parallel_data<Real> parallel);
     void rk4_step_3d(parallel_data<Real> parallel);
     void compute_laplacian(const std::vector<Real>& grid, std::vector<Real>& lap, size_t local_nx, size_t local_ny, size_t ny, size_t init_pos, Real dh);
+    // float16
+    void compute_laplacian_float16(const std::vector<Real>& grid, std::vector<Real>& lap, size_t local_nx, size_t local_ny, size_t ny, size_t init_pos, Real dh);
     // non-compression MPI ghost zone exchange
     void exchange_ghost_cells(std::vector<Real>& grid, size_t local_nx, size_t local_ny, size_t ny,
                           MPI_Datatype datatype, MPI_Comm cart_comm, size_t up, size_t down, 
@@ -31,6 +33,12 @@ public:
     // RK4 update using extended ghost zone -- no MPI communication for intermediate steps 
     size_t rk4_step_2d_extendedGhostZ(parallel_data<Real> parallel); 
 
+    // mixed precision version of the above  
+    size_t rk4_step_2d_extendedGhostZ_mixPrec(parallel_data<Real> parallel);
+
+    // Euler method for Brusselator time integration 
+    size_t Euler_step_2d_extendedGhostZ(parallel_data<Real> parallel);
+    
     // MGARD-compression with extended ghost zone for MPI
     size_t exchange_ghost_extended_mgr(std::vector<Real>& grid, size_t nx, size_t ny, 
                           MPI_Comm cart_comm, size_t up, size_t down, size_t left, size_t right,
@@ -61,10 +69,10 @@ private:
     size_t ghostZ_len;
     size_t data_size;
     // Diffusion term
-    double Du;
-    double Dv;
-    double A;
-    double B;
+    Real Du;
+    Real Dv;
+    Real A;
+    Real B;
 };
 
 #include "dualSystemEq.tpp"

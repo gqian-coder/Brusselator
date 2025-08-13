@@ -45,8 +45,8 @@ void fun_cos_waves(Real *u, Real *v, field dField, Real A, Real freq)
     for (size_t i=1; i<=dField.nx; i++) {
         for (size_t j=1; j<=dField.ny; j++) {
             size_t id = idx_2d(i, j, dField.ny+buffer_L);
-            double x = (dField.nx_start + i - dField.ghostZ_len) * freq;
-            double y = (dField.ny_start + j - dField.ghostZ_len) * freq;
+            Real x = (dField.nx_start + i - dField.ghostZ_len) * freq;
+            Real y = (dField.ny_start + j - dField.ghostZ_len) * freq;
             u[id] += A * cos(M_PI * x) * cos(M_PI * y); 
             v[id] += A * cos(2 * M_PI * x) * cos(2 * M_PI * y);
         }

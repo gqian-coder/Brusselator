@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 
 project(brusselator)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(MPI REQUIRED)
 find_package(ADIOS2 REQUIRED PATHS /home/qg7/indir/)
 find_package(mgard REQUIRED)
@@ -20,13 +21,20 @@ set(SZ3_INCLUDES "/usr/local/include/SZ3/")
 find_library(SZ3_LIB SZ3c REQUIRED HINTS "/usr/local/lib/")
 
 add_executable(brusselator_mpi brusselator_mpi.cpp io.tpp dualSystemEq.tpp funInit.tpp)
-target_include_directories(brusselator_mpi PRIVATE ${SZ3_INCLUDES} ${ZSTD_INCLUDES})
+target_include_directories(brusselator_mpi PRIVATE /usr/include/eigen3 ${SZ3_INCLUDES} ${ZSTD_INCLUDES})
 target_link_libraries(brusselator_mpi adios2::adios2 MPI::MPI_C mgard::mgard ${ZSTD_LIB} ${SZ3_LIB})
 
 add_executable(errCalc errCalc.cpp)
 target_link_libraries(errCalc adios2::adios2 MPI::MPI_C)
 
+add_executable(errCalc_floatData errCalc_floatData.cpp)
+target_link_libraries(errCalc_floatData adios2::adios2 MPI::MPI_C)
 
 add_executable(brusselator_mpi_extended brusselator_mpi_extended.cpp io.tpp dualSystemEq.tpp funInit.tpp)
-target_include_directories(brusselator_mpi_extended PRIVATE ${SZ3_INCLUDES} ${ZSTD_INCLUDES})
+target_include_directories(brusselator_mpi_extended PRIVATE /usr/include/eigen3 ${SZ3_INCLUDES} ${ZSTD_INCLUDES})
 target_link_libraries(brusselator_mpi_extended adios2::adios2 MPI::MPI_C mgard::mgard ${ZSTD_LIB} ${SZ3_LIB})
+
+add_executable(brusselator_mpi_mixedPrec brusselator_mpi_mixedPrec.cpp io.tpp dualSystemEq.tpp funInit.tpp)
+target_include_directories(brusselator_mpi_mixedPrec PRIVATE /usr/include/eigen3 ${SZ3_INCLUDES} ${ZSTD_INCLUDES})
+target_link_libraries(brusselator_mpi_mixedPrec adios2::adios2 MPI::MPI_C mgard::mgard ${ZSTD_LIB} ${SZ3_LIB})
+

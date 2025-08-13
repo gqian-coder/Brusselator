@@ -12,19 +12,21 @@
 #include "adios2.h"
 
 // kinetic energy
-double calc_KE(double *u_prev, double *u, double dt, size_t num_data)
+template<typename Real>
+double calc_KE(Real *u_prev, Real *u, double dt, size_t num_data)
 {
     double diff_t, KE = 0.0;
     double dt2 = dt*dt;
     for (size_t i=0; i<num_data; i++) {
-        diff_t = (u[i] - u_prev[i]);
+        diff_t = static_cast<double>(u[i] - u_prev[i]);
         KE += diff_t * diff_t / dt2 ;
     }
     return KE * 0.5;
 }
 
 // potential energy
-double calc_PE(double *u, double dh, size_t Nx, size_t Ny)
+template<typename Real>
+double calc_PE(Real *u, double dh, size_t Nx, size_t Ny)
 {
     double PE = 0.0;
     double ux, uy;
@@ -33,8 +35,8 @@ double calc_PE(double *u, double dh, size_t Nx, size_t Ny)
         r_curr = r * Ny;
         for (size_t c=1; c<Ny; c++) {
             k  = r_curr + c;
-            ux = (u[k] - u[k-Ny]) / dh;
-            uy = (u[k] - u[k-1])/dh;
+            ux = static_cast<double>(u[k] - u[k-Ny]) / dh;
+            uy = static_cast<double>(u[k] - u[k-1])/dh;
             PE += ux*ux + uy*uy;
         }
     }
@@ -42,11 +44,12 @@ double calc_PE(double *u, double dh, size_t Nx, size_t Ny)
 }
 
 // root-of-mean-square error
-double calc_rmse(double *data_f, double *data_g, double *diff, size_t num_data)
+template<typename Real>
+double calc_rmse(Real *data_f, Real *data_g, double *diff, size_t num_data)
 {
     double rmse = 0.0;
     for (size_t i=0; i<num_data; i++) {
-        diff[i] = data_f[i] - data_g[i];
+        diff[i] = static_cast<double>(data_f[i] - data_g[i]);
         rmse += (diff[i]*diff[i]); 
     }
     rmse = rmse / (double)num_data;
@@ -81,10 +84,10 @@ int main(int argc, char **argv) {
     adios2::Engine reader_f = reader_io_f.Open(fname_f, adios2::Mode::ReadRandomAccess);
     adios2::Engine reader_g = reader_io_g.Open(fname_g, adios2::Mode::ReadRandomAccess);
 
-    adios2::Variable<double> variable_f_u = reader_io_f.InquireVariable<double>("u");
-    adios2::Variable<double> variable_g_u = reader_io_g.InquireVariable<double>("u");
-    adios2::Variable<double> variable_f_v = reader_io_f.InquireVariable<double>("v");
-    adios2::Variable<double> variable_g_v = reader_io_g.InquireVariable<double>("v");
+    adios2::Variable<float> variable_f_u = reader_io_f.InquireVariable<float>("u");
+    adios2::Variable<float> variable_g_u = reader_io_g.InquireVariable<float>("u");
+    adios2::Variable<float> variable_f_v = reader_io_f.InquireVariable<float>("v");
+    adios2::Variable<float> variable_g_v = reader_io_g.InquireVariable<float>("v");
     size_t available_Steps = std::min(variable_g_u.Steps(), variable_f_u.Steps() - init_ts); 
     if (total_Steps>0) {
         total_Steps = std::min(total_Steps, available_Steps); 
@@ -98,16 +101,16 @@ int main(int argc, char **argv) {
     std::vector<std::size_t> shape = variable_f_u.Shape();
     size_t num_data = shape[0]*shape[1];
     std::cout << "data space: " << shape[0] << "x" << shape[1] << "\n";
-    std::vector<double> var_f(num_data);
-    std::vector<double> var_g(num_data);
+    std::vector<float> var_f(num_data);
+    std::vector<float> var_g(num_data);
     // difference data
     std::vector<double> var_e(num_data);
     std::vector<double> rmse_u(total_Steps);
     std::vector<double> rmse_v(total_Steps);
     std::vector<double> var_prevE_u(num_data);
-    std::vector<double> var_prevF_u(num_data);
+    std::vector<float>  var_prevF_u(num_data);
     std::vector<double> var_prevE_v(num_data);
-    std::vector<double> var_prevF_v(num_data);
+    std::vector<float>  var_prevF_v(num_data);
     std::vector<double> PE_e_u(total_Steps);
     std::vector<double> PE_f_u(total_Steps);
     std::vector<double> PE_e_v(total_Steps);
@@ -132,7 +135,7 @@ int main(int argc, char **argv) {
         variable_f_u.SetStepSelection({init_ts+cnt, 1});
         reader_f.Get(variable_f_u, var_f);
         reader_f.PerformGets();
-        variable_g_u = reader_io_g.InquireVariable<double>("u");
+        variable_g_u = reader_io_g.InquireVariable<float>("u");
         reader_g.Get(variable_g_u, var_g);
         reader_g.PerformGets();
         rmse_u[cnt] = calc_rmse(var_f.data(), var_g.data(), var_e.data(), num_data);
@@ -151,7 +154,7 @@ int main(int argc, char **argv) {
         variable_f_v.SetStepSelection({init_ts+cnt, 1});
         reader_f.Get(variable_f_v, var_f);
         reader_f.PerformGets();
-        variable_g_v = reader_io_g.InquireVariable<double>("v");
+        variable_g_v = reader_io_g.InquireVariable<float>("v");
         reader_g.Get(variable_g_v, var_g);
         reader_g.PerformGets();
         rmse_v[cnt] = calc_rmse(var_f.data(), var_g.data(), var_e.data(), num_data);

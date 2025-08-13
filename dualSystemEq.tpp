@@ -1,6 +1,7 @@
 #include <array>
 #include <ostream>
 #include <vector>
+#include <Eigen/Core>
 #include "io.hpp"
 #include "mgard/compress_x.hpp"
 #include "SZ3/api/sz.hpp"
@@ -61,6 +62,27 @@ void dualSystemEquation<Real>::compute_laplacian(const std::vector<Real>& grid, 
                 - 4 * grid[idx(i, j, ny)]) / dh2;
         }
     }
+}
+
+// Compute Laplacian using 5-posize_t stencil
+template<typename Real>
+void dualSystemEquation<Real>::compute_laplacian_float16(const std::vector<Real>& grid, std::vector<Real>& lap,
+                                                size_t edge_nx, size_t edge_ny, size_t ny,
+                                                size_t init_pos, Real dh)
+{
+    std::vector<Eigen::half> lap_half(lap.size());
+    Real dh2 = dh*dh;
+    for (size_t i = init_pos; i <= edge_nx; ++i) {
+        for (size_t j = init_pos; j <= edge_ny; ++j) {
+            lap_half[idx(i, j, ny)] = Eigen::half(
+               (grid[idx(i + 1, j, ny)] + grid[idx(i - 1, j, ny)]
+                + grid[idx(i, j + 1, ny)] + grid[idx(i, j - 1, ny)]
+                - 4 * grid[idx(i, j, ny)]) / dh2);
+        }
+    }
+    // convert float16 back to float32
+    std::transform(lap_half.begin(), lap_half.end(), lap.begin(),
+               [](Eigen::half h){ return static_cast<Real>(h); });
 }
 
 // Exchange ghost cells with neighbors with compression on the whole sub-domain 
@@ -136,7 +158,7 @@ size_t dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& gri
     
     // copy back to the current grid
     // Up
-    double *recv_buf_ptr = recv_buf.data() + total_buffer - 2*ny + 1;
+    Real *recv_buf_ptr = recv_buf.data() + total_buffer - 2*ny + 1;
     for (size_t j = 0; j < local_ny; ++j) {
         grid[idx(0, j + 1, ny)] = *(recv_buf_ptr++);
     }
@@ -232,7 +254,7 @@ size_t dualSystemEquation<Real>::exchange_ghost_cells_SZ(std::vector<Real>& grid
 
     // copy back to the current grid
     // Up
-    double *recv_buf_ptr = recv_buf.data() + total_buffer - 2*ny + 1;
+    Real *recv_buf_ptr = recv_buf.data() + total_buffer - 2*ny + 1;
     for (size_t j = 0; j < local_ny; ++j) {
         grid[idx(0, j + 1, ny)] = *(recv_buf_ptr++);
     }
@@ -333,7 +355,7 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended(std::vector<Real>& grid
     size_t start_col     = ghostZ_len + local_ny;
     size_t skipZone_up   = (local_nx-ghostZ_len)*local_ny;
     // Up: skip the ghost zone on the bottom
-    double *recv_buf_ptr = recv_buf.data() + skipZone_up;
+    Real *recv_buf_ptr = recv_buf.data() + skipZone_up;
     for (size_t i=0; i<ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(i, ghostZ_len, ny)]);
         recv_buf_ptr += local_ny;
@@ -559,7 +581,7 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended_mgr(std::vector<Real>& 
     size_t start_col     = ghostZ_len + local_ny;
     size_t skipZone_up   = (local_nx - ghostZ_len) * local_ny;
     // Up
-    double *recv_buf_ptr = recv_buf.data() + skipZone_up;
+    Real *recv_buf_ptr = recv_buf.data() + skipZone_up;
     for (size_t i=0; i<ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(i, ghostZ_len, ny)]);
         recv_buf_ptr += local_ny;
@@ -835,7 +857,7 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended_mgr(std::vector<Real>& 
 
     // copy back to the current grid
     // Up: skip the ghost zone on the bottom 
-    double *recv_buf_ptr = recv_buf.data() + ghostZ_len;
+    Real *recv_buf_ptr = recv_buf.data() + ghostZ_len;
     for (size_t i=0; i<ghostZ_len; i++) {
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(i, ghostZ_len, ny)]);
         recv_buf_ptr += ny;
@@ -1028,7 +1050,7 @@ void dualSystemEquation<Real>::exchange_ghost_cells_mgr(std::vector<Real>& grid,
     void *recv_buf_right = static_cast<void*>(recv_buf.data() + 2*local_ny + local_nx);
     mgard_x::decompress((void *)recv_compressed_right, compressed_size_right, recv_buf_right, config, true);
      
-    double *recv_buf_ptr = recv_buf.data();
+    Real *recv_buf_ptr = recv_buf.data();
     // copy back to the current grid
     for (size_t j = 0; j < local_ny; ++j) {
         grid[idx(0, j + 1, ny)] = *(recv_buf_ptr++);
@@ -1104,9 +1126,9 @@ size_t dualSystemEquation<Real>::rk4_step_2d(parallel_data<Real> parallel)
     size_t nx = dField.nx;
     size_t ny = dField.ny;
     size_t size = (nx + 2) * (ny + 2);
-    std::vector<double> k1u(size), k2u(size), k3u(size), k4u(size);
-    std::vector<double> k1v(size), k2v(size), k3v(size), k4v(size);
-    std::vector<double> Lu(size), Lv(size), ut(size), vt(size);
+    std::vector<Real> k1u(size), k2u(size), k3u(size), k4u(size);
+    std::vector<Real> k1v(size), k2v(size), k3v(size), k4v(size);
+    std::vector<Real> Lu(size), Lv(size), ut(size), vt(size);
     
     MPI_Datatype datatype = parallel.datatype;
     MPI_Comm cart_comm    = parallel.comm;
@@ -1337,6 +1359,7 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ(parallel_data<Real> 
     edge_ny  = extended_ny-3;
     compute_laplacian(ut, Lu, edge_nx, edge_ny, extended_ny, 2, dh);
     compute_laplacian(vt, Lv, edge_nx, edge_ny, extended_ny, 2, dh);
+    
     for (size_t i = 2; i <= edge_nx; ++i) {
         for (size_t j = 2; j <= edge_ny; ++j) {
             size_t id = idx(i, j, extended_ny);
@@ -1352,6 +1375,7 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ(parallel_data<Real> 
     edge_ny  = extended_ny-4;
     compute_laplacian(ut, Lu, edge_nx, edge_ny, extended_ny, 3, dh);
     compute_laplacian(vt, Lv, edge_nx, edge_ny, extended_ny, 3, dh);
+    
     for (size_t i = 3; i <= edge_nx; ++i) {
         for (size_t j = 3; j <= edge_ny; ++j) {
             size_t id = idx(i, j, extended_ny);
@@ -1367,6 +1391,127 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ(parallel_data<Real> 
     edge_ny  = extended_ny-5;
     compute_laplacian(ut, Lu, edge_nx, edge_ny, extended_ny, 4, dh);
     compute_laplacian(vt, Lv, edge_nx, edge_ny, extended_ny, 4, dh);
+    
+    for (size_t i = 4; i <= edge_nx; ++i) {
+        for (size_t j = 4; j <= edge_ny; ++j) {
+            size_t id = idx(i, j, extended_ny);
+            k4u[id] = A - (B + 1) * ut[id] + ut[id] * ut[id] * vt[id] + Du * Lu[id];
+            k4v[id] = B * ut[id] - ut[id] * ut[id] * vt[id] + Dv * Lv[id];
+        }
+    }
+
+    // Final update
+    for (size_t i = 4; i <= edge_nx; ++i) {
+        for (size_t j = 4; j <= edge_ny; ++j) {
+            size_t id = idx(i, j, extended_ny);
+            u_n[id] += dt / 6.0 * (k1u[id] + 2 * k2u[id] + 2 * k3u[id] + k4u[id]);
+            v_n[id] += dt / 6.0 * (k1v[id] + 2 * k2v[id] + 2 * k3v[id] + k4v[id]);
+        }
+    }
+
+    return mpi_size;
+}
+
+template<typename Real>
+size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ_mixPrec(parallel_data<Real> parallel)
+{
+    size_t nx = dField.nx;
+    size_t ny = dField.ny;
+    size_t bufferL = 2*ghostZ_len;
+    size_t size = (nx + bufferL) * (ny + bufferL);
+    size_t extended_ny = ny + bufferL;
+    size_t extended_nx = nx + bufferL;
+    std::vector<Real> k1u(size), k2u(size), k3u(size), k4u(size);
+    std::vector<Real> k1v(size), k2v(size), k3v(size), k4v(size);
+    std::vector<Real> Lu(size), Lv(size), ut(size), vt(size);
+
+    MPI_Datatype datatype = parallel.datatype;
+    MPI_Comm cart_comm    = parallel.comm;
+    size_t up             = parallel.up;
+    size_t down           = parallel.down;
+    size_t left           = parallel.left;
+    size_t right          = parallel.right;
+    size_t left_up        = parallel.left_up;
+    size_t left_down      = parallel.left_down;
+    size_t right_up       = parallel.right_up;
+    size_t right_down     = parallel.right_down;
+    Real tol_u            = parallel.tol_u;
+    Real tol_v            = parallel.tol_v;
+    Real mgr_s            = parallel.snorm;
+
+    size_t mpi_size = 0;
+    size_t edge_nx  = extended_nx-2;
+    size_t edge_ny  = extended_ny-2;
+
+    // Only exchange buffer zone at the beginning of the RK4
+    if (parallel.compression==0) {
+        mpi_size += exchange_ghost_extended(u_n, extended_nx, extended_ny, datatype, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down);
+    } else if (parallel.compression==1) {
+        mpi_size += exchange_ghost_extended_mgr(u_n, extended_nx, extended_ny, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down, tol_u, mgr_s);
+    }
+    if (parallel.compression==0) {
+        mpi_size += exchange_ghost_extended(v_n, extended_nx, extended_ny, datatype, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down);
+    } else if (parallel.compression==1) {
+        mpi_size += exchange_ghost_extended_mgr(v_n, extended_nx, extended_ny, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down, tol_v, mgr_s);
+    }
+
+    // k1
+    // ghost zone has been filled up with boundary data
+    compute_laplacian(u_n, Lu, edge_nx, edge_ny, extended_ny, 1, dh);
+    compute_laplacian(v_n, Lv, edge_nx, edge_ny, extended_ny, 1, dh);
+    
+    for (size_t i = 1; i <= edge_nx ; ++i) {
+        for (size_t j = 1; j <= edge_ny; ++j) {
+            size_t id = idx(i, j, extended_ny);
+            k1u[id] = A - (B + 1) * u_n[id] + u_n[id] * u_n[id] * v_n[id] + Du * Lu[id];
+            k1v[id] = B * u_n[id] - u_n[id] * u_n[id] * v_n[id] + Dv * Lv[id];
+            ut[id]  = u_n[id] + 0.5 * dt * k1u[id];
+            vt[id]  = v_n[id] + 0.5 * dt * k1v[id];
+        }
+    }
+
+    // k2: nx-2, ny-2
+    edge_nx  = extended_nx-3;
+    edge_ny  = extended_ny-3;
+    compute_laplacian(ut, Lu, edge_nx, edge_ny, extended_ny, 2, dh);
+    compute_laplacian(vt, Lv, edge_nx, edge_ny, extended_ny, 2, dh);
+
+    for (size_t i = 2; i <= edge_nx; ++i) {
+        for (size_t j = 2; j <= edge_ny; ++j) {
+            size_t id = idx(i, j, extended_ny);
+            k2u[id] = A - (B + 1) * ut[id] + ut[id] * ut[id] * vt[id] + Du * Lu[id];
+            k2v[id] = B * ut[id] - ut[id] * ut[id] * vt[id] + Dv * Lv[id];
+            ut[id] = u_n[id] + 0.5 * dt * k2u[id];
+            vt[id] = v_n[id] + 0.5 * dt * k2v[id];
+        }
+    }
+
+    // k3: nx-3, ny-3
+    edge_nx  = extended_nx-4;
+    edge_ny  = extended_ny-4;
+    compute_laplacian(ut, Lu, edge_nx, edge_ny, extended_ny, 3, dh);
+    compute_laplacian(vt, Lv, edge_nx, edge_ny, extended_ny, 3, dh);
+    
+    for (size_t i = 3; i <= edge_nx; ++i) {
+        for (size_t j = 3; j <= edge_ny; ++j) {
+            size_t id = idx(i, j, extended_ny);
+            k3u[id] = A - (B + 1) * ut[id] + ut[id] * ut[id] * vt[id] + Du * Lu[id];
+            k3v[id] = B * ut[id] - ut[id] * ut[id] * vt[id] + Dv * Lv[id];
+            ut[id] = u_n[id] + 0.5 * dt * k3u[id];
+            vt[id] = v_n[id] + 0.5 * dt * k3v[id];
+        }
+    }
+
+    // k4: nx-4, ny-4
+    edge_nx  = extended_nx-5;
+    edge_ny  = extended_ny-5;
+    compute_laplacian(ut, Lu, edge_nx, edge_ny, extended_ny, 4, dh);
+    compute_laplacian(vt, Lv, edge_nx, edge_ny, extended_ny, 4, dh);
+    
     for (size_t i = 4; i <= edge_nx; ++i) {
         for (size_t j = 4; j <= edge_ny; ++j) {
             size_t id = idx(i, j, extended_ny);
@@ -1388,4 +1533,67 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ(parallel_data<Real> 
 }
 
 
+// time integration through Euler method
+template<typename Real>
+size_t dualSystemEquation<Real>::Euler_step_2d_extendedGhostZ(parallel_data<Real> parallel)
+{
+    size_t nx = dField.nx;
+    size_t ny = dField.ny;
+    size_t bufferL = 2*ghostZ_len;
+    size_t size = (nx + bufferL) * (ny + bufferL);
+    size_t extended_ny = ny + bufferL;
+    size_t extended_nx = nx + bufferL;
+    std::vector<Real> Lu(size), Lv(size), ut(size), vt(size);
 
+    MPI_Datatype datatype = parallel.datatype;
+    MPI_Comm cart_comm    = parallel.comm;
+    size_t up             = parallel.up;
+    size_t down           = parallel.down;
+    size_t left           = parallel.left;
+    size_t right          = parallel.right;
+    size_t left_up        = parallel.left_up;
+    size_t left_down      = parallel.left_down;
+    size_t right_up       = parallel.right_up;
+    size_t right_down     = parallel.right_down;
+    Real tol_u            = parallel.tol_u;
+    Real tol_v            = parallel.tol_v;
+    Real mgr_s            = parallel.snorm;
+
+    size_t mpi_size = 0;
+    size_t edge_nx  = extended_nx-2;
+    size_t edge_ny  = extended_ny-2;
+
+
+    // Only exchange buffer zone at the beginning of the RK4
+    if (parallel.compression==0) {
+        mpi_size += exchange_ghost_extended(u_n, extended_nx, extended_ny, datatype, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down);
+    } else if (parallel.compression==1) {
+        mpi_size += exchange_ghost_extended_mgr(u_n, extended_nx, extended_ny, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down, tol_u, mgr_s);
+    }
+    if (parallel.compression==0) {
+        mpi_size += exchange_ghost_extended(v_n, extended_nx, extended_ny, datatype, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down);
+    } else if (parallel.compression==1) {
+        mpi_size += exchange_ghost_extended_mgr(v_n, extended_nx, extended_ny, cart_comm, up, down, left, right,
+                                                left_up, left_down, right_up, right_down, tol_v, mgr_s);
+    }
+
+    // k1
+    // ghost zone has been filled up with boundary data
+    compute_laplacian(u_n, Lu, edge_nx, edge_ny, extended_ny, 1, dh);
+    compute_laplacian(v_n, Lv, edge_nx, edge_ny, extended_ny, 1, dh);
+
+    for (size_t i = 1; i <= edge_nx ; ++i) {
+        for (size_t j = 1; j <= edge_ny; ++j) {
+            size_t id = idx(i, j, extended_ny);
+            ut[id]  = A - (B + 1) * u_n[id] + u_n[id] * u_n[id] * v_n[id] + Du * Lu[id];
+            vt[id]  = B * u_n[id] - u_n[id] * u_n[id] * v_n[id] + Dv * Lv[id];
+            u_n[id] += dt * ut[id];
+            v_n[id] += dt * vt[id];
+        }
+    }
+
+    return mpi_size;
+}
