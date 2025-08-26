@@ -7,20 +7,21 @@
 #include "io.hpp"
 
 int get_neighbor_rank_periodic(MPI_Comm cart_comm, int dx, int dy) {
-    int coords[2], new_coords[2], dims[2];
+    int coords[2], new_coords[2];
+    std::vector<int> dims = {0, 0};
     int periods[2]={1,1};
     int my_rank, size;
 
     // Get rank and cartesian info
     MPI_Comm_rank(cart_comm, &my_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
-    MPI_Dims_create(size, 2, dims);
+    MPI_Dims_create(size, 2, dims.data());
     MPI_Cart_coords(cart_comm, my_rank, 2, coords);
 
     // Shift coordinates with wraparound if periodic
     new_coords[0] = coords[0] + dx;
     new_coords[1] = coords[1] + dy;
-    // std::cout << "rank " << my_rank << ", original coords: " << coords[0] << ", " << coords[1] << ", shifted coords: " << new_coords[0] << ", " << new_coords[1] << "\n";
+    //std::cout << "rank " << my_rank << ", original coords: " << coords[0] << ", " << coords[1] << ", shifted coords: " << new_coords[0] << ", " << new_coords[1] << "\n";
 
     if (periods[0]) {
         new_coords[0] = (new_coords[0] + dims[0]) % dims[0];
@@ -58,14 +59,15 @@ void initialize_mpi_bound(parallel_data <Real>&parallel, int nDim, int rank,
         std::cout << "This simulatino only support data type double | float\n";
         return;
     }
+    
     MPI_Cart_shift(cart_comm, 0, 1, &parallel.up, &parallel.down);
-    MPI_Cart_shift(cart_comm, 1, 1, &parallel.left, &parallel.right);    
+   MPI_Cart_shift(cart_comm, 1, 1, &parallel.left, &parallel.right);    
 
     parallel.left_up    = get_neighbor_rank_periodic(cart_comm, -1, -1);
     parallel.left_down  = get_neighbor_rank_periodic(cart_comm, +1, -1);
     parallel.right_up   = get_neighbor_rank_periodic(cart_comm, -1, +1);
     parallel.right_down = get_neighbor_rank_periodic(cart_comm, +1, +1);
-
+    
     if (nDim==3) {
         MPI_Cart_shift(cart_comm, 2, 1, &parallel.front, &parallel.back);
     }

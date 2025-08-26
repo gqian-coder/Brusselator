@@ -19,11 +19,11 @@ using namespace std;
 
 // Brusselator parameters
 // Turing spots
-const double A = 0.5;
-const double B = 3.0;
+//const double A = 0.5;
+//const double B = 3.0;
 // Turing strips
-//const double A = 5;
-//const double B = 10;
+const double A = 5;
+const double B = 10;
 double Du = 1.0;
 double Dv = 9.0;
 
@@ -44,7 +44,28 @@ void copy_internal_data(double *copy_buff, double *data_buff, size_t nx, size_t 
     }
 }
 
-int main(int argc, char** argv) {
+
+// only support zm_factor in the format of integer
+// zm_factor: > 1: zm_var is the zoomed-in version of in_var; vice verse 
+// nx, ny: the dimension of zm_var
+void repeatCopy(double *in_var, double *zm_var, double zm_factor, size_t nx, size_t ny)
+{
+    size_t ny_in, offset_zm, offset_in;
+    ny_in = static_cast<size_t>(static_cast<double>(ny) / zm_factor); 
+    for (size_t i=0; i<nx; i++) {
+        size_t i_in = static_cast<size_t>(static_cast<double>(i) / zm_factor);
+        offset_in   = i_in * ny_in;
+        offset_zm   = i    * ny;
+        for (size_t j=0; j<ny; j++) {
+            size_t j_in = static_cast<size_t>(static_cast<double>(j) / zm_factor);    
+            zm_var[offset_zm + j] = in_var[offset_in + j_in];
+        }
+    }
+}
+
+
+int main(int argc, char** argv) 
+{
     MPI_Init(&argc, &argv);
 
     int rank, size;
@@ -57,7 +78,7 @@ int main(int argc, char** argv) {
     MPI_Comm cart_comm;
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims.data(), periods, 0, &cart_comm);
 
-    std::vector<int> coords(3);
+    std::vector<int> coords(2);
     MPI_Cart_coords(cart_comm, rank, 2, coords.data());
     if (rank==0) {
         std::cout << "Dims {" << dims[0] << ", " << dims[1] << "}\n";
@@ -82,10 +103,16 @@ int main(int argc, char** argv) {
     std::cout << "Rank " << rank << " coordinates: {" << coords[0] << ", " << coords[1] << "}, up = " << parallelization.up << ", down = " << parallelization.down << ", left = " << parallelization.left << ", right = " << parallelization.right<< ", ";
     std::cout << "left up = " << parallelization.left_up << ", left down = " << parallelization.left_down << ", right up = " << parallelization.right_up << ", right down = " << parallelization.right_down << "\n";
 
-    int init_fun   = std::stoi(argv[cnt_argv++]);
-    size_t init_ts = 0;
+    int init_fun     = std::stoi(argv[cnt_argv++]);
+    size_t init_ts   = 0;
+    double zm_factor = 1.0;
     if (init_fun==0) {
         init_ts = std::stoi(argv[cnt_argv++]);
+    } else if (init_fun==5) {
+        init_ts   = std::stoi(argv[cnt_argv++]);
+        // zm_factor > 1: load checkpoint and make it zm_factor times larger through repeat copy
+        // zm_factor < 1: skip copy
+        zm_factor = std::stof(argv[cnt_argv++]); 
     }
     double Lx = std::stof(argv[cnt_argv++]);
     double Ly = std::stof(argv[cnt_argv++]);
@@ -99,7 +126,7 @@ int main(int argc, char** argv) {
     size_t Ny = (size_t)std::ceil((double)Ly / dh) ;
     if (rank==0) {
         std::cout << "Checkpoint compression flag " << (int)compression_cpt << ", MPI compression flag " << (int)compression_mpi << ", eb = " << tol_u << ", snorm = " << snorm << "\n"; 
-        std::cout << "init fun = " << init_fun << ", " << "Lx = " << Lx << ", Ly = " << Ly << ", dh = " << dh << ", dt = " << dt <<  ", T = " << T << ", total steps = " << steps <<  ", wt_interval = " << wt_interval << ", Nx = " << Nx << ", " << Ny << "\n";
+        std::cout << "init fun = " << init_fun << ", " << "Lx = " << Lx << ", Ly = " << Ly << ", dh = " << dh << ", dt = " << dt <<  ", T = " << T << ", total steps = " << steps <<  ", wt_interval = " << wt_interval << ", total output steps = " << steps / wt_interval << ", Nx = " << Nx << ", " << Ny << "\n";
     }
 
     // Set Dv to generate Turing instability
@@ -143,7 +170,7 @@ int main(int argc, char** argv) {
 
     if ((init_fun==1) || (init_fun==2)) {
         // Width of the Gaussian profile for each initial drop.
-        double drop_width = (init_fun==1) ? fieldData.nx_full/2*dh : fieldData.nx_full/3*dh;
+        double drop_width = fieldData.nx_full/3.0*dh;
         // Size of the Gaussian template each drop is based on.
         NDx = (size_t) std::ceil(drop_width / dh);
         NDy = (size_t) std::ceil(drop_width / dh);
@@ -152,10 +179,10 @@ int main(int argc, char** argv) {
         gauss_template.resize(NDx*NDy, 0);
         std::vector <double> px(NDx), py(NDy);
         for (size_t r=0; r<NDx; r++) {
-            px[r] = ((double)r - cx)/drop_width;
+            px[r] = ((double)r - cx)/NDx*16;
         }
         for (size_t c=0; c<NDy; c++) {
-            py[c] = (double(c)-cy)/drop_width;
+            py[c] = (double(c)-cy)/NDy*16;
         }
         for (size_t r=0; r<NDx; r++) {
             for (size_t c=0; c<NDy; c++) {
@@ -223,6 +250,50 @@ int main(int argc, char** argv) {
             double minv = 0, maxv = 0.01;
             generate_random_vector<double>(dualSys.u_n.data(), data_size, minv, maxv);
             generate_random_vector<double>(dualSys.v_n.data(), data_size, minv, maxv);
+            break;
+        }
+        case 5: {
+            adios2::IO reader_io = adios.DeclareIO("Input");
+            reader_io.SetEngine("BP");
+            adios2::Engine reader = reader_io.Open(filename, adios2::Mode::ReadRandomAccess);
+            adios2::Variable<double> variable_u, variable_v;
+            variable_u = reader_io.InquireVariable<double>("u");
+            variable_v = reader_io.InquireVariable<double>("v");
+            if (rank==0) {
+                std::cout << " Load checkpoint and create a zoomed in/out shadow system\n";
+                std::cout << "total number of steps: " << variable_u.Steps() << ", read from " << init_ts << " timestep \n";
+                std::cout << "Initialize the simulation from a previously saved checkpoint file\n";
+            }
+            size_t readin_sz = (size_t) ((double)(fieldData.nx * fieldData.ny) / zm_factor / zm_factor);
+            std::vector<double> in_var(readin_sz);
+            std::vector<double> zm_var(fieldData.nx * fieldData.ny);
+            std::vector<std::size_t> zm_start = {(std::size_t)(static_cast<double>(fieldData.nx_start) / zm_factor), (std::size_t)(static_cast<double>(fieldData.ny_start) / zm_factor)};
+            std::vector<std::size_t> zm_count = {(std::size_t)(static_cast<double>(fieldData.nx) / zm_factor), (std::size_t)(static_cast<double>(fieldData.ny) / zm_factor)}; 
+            
+            variable_u.SetSelection({zm_start, zm_count});
+            variable_u.SetStepSelection({init_ts, 1});
+            variable_v.SetSelection({zm_start, zm_count});
+            variable_v.SetStepSelection({init_ts, 1});
+
+            reader.Get(variable_u, in_var.data());
+            reader.PerformGets();
+
+            repeatCopy(in_var.data(), zm_var.data(), zm_factor, fieldData.nx, fieldData.ny);
+            dualSys.init_u_2d(zm_var.data());
+
+            reader.Get(variable_v, in_var.data());
+            reader.PerformGets();
+
+            repeatCopy(in_var.data(), zm_var.data(), zm_factor, fieldData.nx, fieldData.ny); 
+            dualSys.init_v_2d(zm_var.data());
+            
+            reader.Close();
+            in_var.clear();
+            zm_var.clear();
+            filename.erase(filename.size() - 3);
+            filename.append("-shadow-cr.bp");
+            
+            break;
         }
         default:
             break;
@@ -262,7 +333,6 @@ int main(int argc, char** argv) {
                 // write out decompressed data to checkpoint file (so restart does not need to decompress)
                 void *decompress_pt = static_cast<void*>(internal_u.data());
                 mgard_x::decompress(compressed_u, temp_cp_size, decompress_pt, config, true);
-                // writer.Put(var_u, (double *)compressed_u, adios2::Mode::Sync);
             } 
             writer.Put(var_u, internal_u.data(), adios2::Mode::Sync);
             
@@ -275,7 +345,6 @@ int main(int argc, char** argv) {
                 compressed_size_v += temp_cp_size;
                 void *decompress_pt = static_cast<void*>(internal_v.data());
                 mgard_x::decompress(compressed_v, temp_cp_size, decompress_pt, config, true);
-                // writer.Put(var_v, (double *)compressed_v, adios2::Mode::Sync);
             }
             writer.Put(var_v, internal_v.data(), adios2::Mode::Sync);
             
@@ -284,7 +353,7 @@ int main(int argc, char** argv) {
             if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
         }
         mpi_size_rk += dualSys.rk4_step_2d_extendedGhostZ(parallelization);
-        //mpi_size_rk += dualSys.Euler_step_2d_extendedGhostZ(parallelization);
+       // mpi_size_rk += dualSys.Euler_step_2d_extendedGhostZ(parallelization);
     }
     if (compression_mpi) {
         MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
@@ -311,3 +380,5 @@ int main(int argc, char** argv) {
     MPI_Finalize();
     return 0;
 }
+
+

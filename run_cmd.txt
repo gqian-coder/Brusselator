@@ -6,16 +6,53 @@ mpirun -np 25 ./brusselator_mpi 1 1e-5 1e-5 0 2 100 100 0.1 2.5e-4 50 50 Gaussia
 
 3) New code: compression checkpoint
 # no compression -- write out data at every timestep
-mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 2 192.75 192.75 0.15 6e-4 51 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ori.bp
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 2 192.75 192.75 0.15 6e-4 51 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
 
 # compress a checkpoint data: using a single rank/GPU  
 # compress @ 1.5s
-./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 2500 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ori.bp
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 2500 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
 
 # restart
 mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 49.5 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts2500.bp
 
 # compress @ 6s
-./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 10000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ori.bp
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 10000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
 
 mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 45 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts10000.bp
+
+# compress @ 9s
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 15000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
+
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 45 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts15000.bp
+
+# compress @ 12s
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 20000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
+
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 39 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts20000.bp
+
+# compress @ 15s
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 25000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
+
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 36 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts25000.bp
+
+# compress @ 18s
+./brusselator_mpi_extended 1 0 1e-5 1e-5 0 0 30000 192.75 192.75 0.15 6e-4 6e-3 1 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp
+
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 33 1 Gaussian4Disk_T100/brusselator_mpi_e
+xtended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts30000.bp
+
+./errCalc Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_ori.bp Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s1_1.2e-2_ts2500-cr.bp 6e-4 0.15 2500 crErrAnalysis/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s1_1.2e-2_ts2500-cr 85000 1 > crErrAnalysis/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s1_1.2e-2_ts2500-cr.txt
+
+# lr surrogate model
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 2 192.75 192.75 0.3 2.4e-3 51 25 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_03_dt_2.4e-3_T51_1285x1285_ori.bp
+
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 2 192.75 192.75 0.15 3e-4 51 50 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_3e-4_T51_1285x1285_ori.bp
+
+# mixed precision
+mpirun -np 25 ./brusselator_mpi_mixedPrec 0 0 1e-5 1e-5 0 2 192.75 192.75 0.15 6e-4 51 50 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_float32.bp
+
+# Euler time integration
+mpirun -np 25 ./brusselator_mpi_mixedPrec 0 0 1e-5 1e-5 0 2 192.75 192.75 0.15 6e-4 51 50 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_Euler.bp
+
+# restart Euler from non-growth regime
+mpirun -np 25 ./brusselator_mpi_extended 0 0 1e-5 1e-5 0 0 0 192.75 192.75 0.15 6e-4 45 50 Gaussian4Disk_T100/brusselator_mpi_extended_A_05_B_3_dh_015_dt_6e-4_T51_1285x1285_s0_1e-5_ts15000.bp

@@ -110,8 +110,8 @@ int main(int argc, char** argv) {
     if (rank==0) std::cout << "CFL required dt " << dt_cfl << "\n";
     if (dt >= dt_cfl) {
         std::cout << "CFL condition violated\n";    
-        MPI_Finalize();
-        return -1;
+        //MPI_Finalize();
+        //return -1;
     }
 
     field fieldData;
@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
             in_var.clear();
             vec_float.clear();
             filename.erase(filename.size() - 3);
-            filename.append("-float-cr.bp");
+            filename.append("-float-hr-rk4-cr.bp");
             break;
         }
         case 1: {
@@ -294,8 +294,8 @@ int main(int argc, char** argv) {
             writer.EndStep(); 
             if (rank == 0) std::cout << "Step " << t << " written to ADIOS2." << std::endl;
         }
-        //mpi_size_rk += dualSys.rk4_step_2d_extendedGhostZ_mixPrec(parallelization);
-        mpi_size_rk += dualSys.Euler_step_2d_extendedGhostZ(parallelization);
+        mpi_size_rk += dualSys.rk4_step_2d_extendedGhostZ_mixPrec(parallelization);
+        //mpi_size_rk += dualSys.Euler_step_2d_extendedGhostZ(parallelization);
     }
     if (compression_mpi) {
         MPI_Reduce(&mpi_size_rk, &mpi_size_total, 1, MPI_UNSIGNED_LONG_LONG, MPI_SUM, 0, MPI_COMM_WORLD);

@@ -36,7 +36,6 @@ void dualSystemEquation<Real>::init_u_2d(Real *data)
     }
 }
 
-
 template<typename Real>
 void dualSystemEquation<Real>::init_v_2d(Real *data)
 {

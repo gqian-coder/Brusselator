@@ -45,11 +45,11 @@ double calc_PE(Real *u, double dh, size_t Nx, size_t Ny)
 
 // root-of-mean-square error
 template<typename Real>
-double calc_rmse(Real *data_f, Real *data_g, double *diff, size_t num_data)
+double calc_rmse(double *data_f, Real *data_g, double *diff, size_t num_data)
 {
     double rmse = 0.0;
     for (size_t i=0; i<num_data; i++) {
-        diff[i] = static_cast<double>(data_f[i] - data_g[i]);
+        diff[i] = data_f[i] - static_cast<double>(data_g[i]);
         rmse += (diff[i]*diff[i]); 
     }
     rmse = rmse / (double)num_data;
@@ -84,10 +84,10 @@ int main(int argc, char **argv) {
     adios2::Engine reader_f = reader_io_f.Open(fname_f, adios2::Mode::ReadRandomAccess);
     adios2::Engine reader_g = reader_io_g.Open(fname_g, adios2::Mode::ReadRandomAccess);
 
-    adios2::Variable<float> variable_f_u = reader_io_f.InquireVariable<float>("u");
-    adios2::Variable<float> variable_g_u = reader_io_g.InquireVariable<float>("u");
-    adios2::Variable<float> variable_f_v = reader_io_f.InquireVariable<float>("v");
-    adios2::Variable<float> variable_g_v = reader_io_g.InquireVariable<float>("v");
+    adios2::Variable<double> variable_f_u = reader_io_f.InquireVariable<double>("u");
+    adios2::Variable<float>  variable_g_u = reader_io_g.InquireVariable<float>("u");
+    adios2::Variable<double> variable_f_v = reader_io_f.InquireVariable<double>("v");
+    adios2::Variable<float>  variable_g_v = reader_io_g.InquireVariable<float>("v");
     size_t available_Steps = std::min(variable_g_u.Steps(), variable_f_u.Steps() - init_ts); 
     if (total_Steps>0) {
         total_Steps = std::min(total_Steps, available_Steps); 
@@ -101,16 +101,16 @@ int main(int argc, char **argv) {
     std::vector<std::size_t> shape = variable_f_u.Shape();
     size_t num_data = shape[0]*shape[1];
     std::cout << "data space: " << shape[0] << "x" << shape[1] << "\n";
-    std::vector<float> var_f(num_data);
+    std::vector<double> var_f(num_data);
     std::vector<float> var_g(num_data);
     // difference data
     std::vector<double> var_e(num_data);
     std::vector<double> rmse_u(total_Steps);
     std::vector<double> rmse_v(total_Steps);
     std::vector<double> var_prevE_u(num_data);
-    std::vector<float>  var_prevF_u(num_data);
+    std::vector<double>  var_prevF_u(num_data);
     std::vector<double> var_prevE_v(num_data);
-    std::vector<float>  var_prevF_v(num_data);
+    std::vector<double>  var_prevF_v(num_data);
     std::vector<double> PE_e_u(total_Steps);
     std::vector<double> PE_f_u(total_Steps);
     std::vector<double> PE_e_v(total_Steps);
