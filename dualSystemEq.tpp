@@ -359,17 +359,6 @@ size_t dualSystemEquation<Real>::exchange_ghost_extended(std::vector<Real>& grid
         std::copy(recv_buf_ptr, recv_buf_ptr + local_ny, &grid[idx(i, ghostZ_len, ny)]);
         recv_buf_ptr += local_ny;
     }
-    /* 
-    int my_rank;
-    MPI_Comm_rank(cart_comm, &my_rank);
-    if ((my_rank==0) || (my_rank==4) || (my_rank==15) || (my_rank==19) || (my_rank==20) || (my_rank==24)) {
-        char filename[256];
-        sprintf(filename, "viz_UpMPI_rank_%d.bin", my_rank);
-        FILE *fp = fopen(filename, "wb");
-        fwrite(recv_buf.data(), sizeof(Real), local_nx*local_ny, fp);
-        fclose(fp);
-    }
-    */
     
     // Down: skip the ghost zone on the top
     recv_buf_ptr     = recv_buf.data() + total_buffer;
@@ -1500,8 +1489,8 @@ size_t dualSystemEquation<Real>::rk4_step_2d_extendedGhostZ_mixPrec(parallel_dat
             size_t id = idx(i, j, extended_ny);
             k3u[id] = A - (B + 1) * ut[id] + ut[id] * ut[id] * vt[id] + Du * Lu[id];
             k3v[id] = B * ut[id] - ut[id] * ut[id] * vt[id] + Dv * Lv[id];
-            ut[id] = u_n[id] + 0.5 * dt * k3u[id];
-            vt[id] = v_n[id] + 0.5 * dt * k3v[id];
+            ut[id] = u_n[id] + dt * k3u[id];
+            vt[id] = v_n[id] + dt * k3v[id];
         }
     }
 

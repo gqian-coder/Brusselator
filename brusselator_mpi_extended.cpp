@@ -220,7 +220,11 @@ int main(int argc, char** argv)
             reader.Close();
             in_var.clear();
             filename.erase(filename.size() - 3);
-            filename.append("-cr.bp");
+            if (compression_cpt) {
+                filename.append("-eb.bp");
+            } else{
+                filename.append("-cr.bp");
+            }
             break;
         }
         case 1: {
@@ -319,6 +323,7 @@ int main(int argc, char** argv)
         config.lossless = mgard_x::lossless_type::Huffman_Zstd;
         config.normalize_coordinates = true;
         config.dev_type = mgard_x::device_type::CUDA;
+        config.dev_id   = 1;
     }
     for (size_t t = 0; t <= steps; ++t) {
         if (t % wt_interval == 0) {
